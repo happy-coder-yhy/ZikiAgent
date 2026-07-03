@@ -1,0 +1,16 @@
+{
+  "code": 0,
+  "reason": "",
+  "message": "success",
+  "metadata": {
+    "id": "<objectCategoryId>",
+    "parentId": "<parentId>",
+    "name": "水果",
+    "path": "/食品/水果",
+    "level": 2,
+    "sortOrder": 1,
+    "status": 1,
+    "createdAt": "<createdAt>",
+    "updatedAt": "<updatedAt>"
+  }
+}

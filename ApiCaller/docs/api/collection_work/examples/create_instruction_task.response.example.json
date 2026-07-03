@@ -1,0 +1,93 @@
+{
+  "code": 0,
+  "reason": "",
+  "message": "success",
+  "metadata": {
+    "id": "<taskId>",
+    "projectId": "<projectId>",
+    "projectName": "XX超市数据采集项目",
+    "templateId": null,
+    "templateTitle": "",
+    "title": "收银区视频指令采集",
+    "description": "按提示采集商超收银区视频",
+    "remark": "",
+    "sceneId": "<sceneId>",
+    "sceneName": "收银",
+    "mainSceneId": "<mainSceneId>",
+    "mainSceneName": "商超",
+    "spaceIds": [
+      "<spaceId>"
+    ],
+    "spaceItems": [
+      {
+        "id": "<spaceId>",
+        "name": "收银区"
+      }
+    ],
+    "taskPurposeId": "<taskPurposeId>",
+    "taskPurposeName": "运营试采",
+    "collectSchemeId": "<collectSchemeId>",
+    "collectSchemeName": "视频采集",
+    "collectModeId": "<collectModeId>",
+    "collectModeName": "指令采集",
+    "deviceTypeId": null,
+    "deviceTypeName": "",
+    "collectMethod": "web_video",
+    "taskCategory": "instruction",
+    "promptInstruction": "请采集包含收银员扫码、顾客付款和商品摆放的收银区视频",
+    "taskType": null,
+    "taskTypeName": "",
+    "difficulty": null,
+    "abnormalRatio": null,
+    "countdownSeconds": null,
+    "planCollectCount": 100,
+    "normalPlanCount": 100,
+    "abnormalPlanCount": 0,
+    "minDuration": null,
+    "duration": null,
+    "videoQuality": 1,
+    "recognitionEnabled": false,
+    "customLabelIds": [
+      "<customLabelId>"
+    ],
+    "customLabelItems": [
+      {
+        "id": "<customLabelId>",
+        "name": "视频采集"
+      }
+    ],
+    "auditLabelIds": [],
+    "auditLabelItems": [],
+    "normalCollectCount": 0,
+    "abnormalCollectCount": 0,
+    "normalAuditCount": 0,
+    "abnormalAuditCount": 0,
+    "jobCount": 0,
+    "initialState": "",
+    "status": 1,
+    "createdBy": "<createdBy>",
+    "createdByDisplayName": "<createdByDisplayName>",
+    "createdAt": "<createdAt>",
+    "updatedAt": "<updatedAt>",
+    "auditors": [
+      {
+        "userId": "<auditorUserId>",
+        "userName": "checker",
+        "displayName": "审核员",
+        "userDisplayName": "审核员",
+        "enabled": true
+      }
+    ],
+    "collectors": [
+      {
+        "userId": "<collectorUserId>",
+        "userName": "collector",
+        "displayName": "采集员",
+        "userDisplayName": "采集员",
+        "enabled": true
+      }
+    ],
+    "actionSteps": [],
+    "objectBindings": []
+  }
+}

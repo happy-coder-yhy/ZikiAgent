@@ -1,0 +1,66 @@
+{
+  "projectId": "<projectId>",
+  "mainSceneId": "<mainSceneId>",
+  "sceneId": "<sceneId>",
+  "title": "物品收银扫码",
+  "description": "对收银扫码技能的动作采集",
+  "remark": "<p>严格任务直接创建示例</p>",
+  "taskPurposeId": "<taskPurposeId>",
+  "collectMethod": "robot",
+  "taskCategory": "strict",
+  "collectModeId": "<collectModeId>",
+  "collectSchemeId": "<collectSchemeId>",
+  "deviceTypeId": "<deviceTypeId>",
+  "taskType": "<taskType>",
+  "difficulty": 1,
+  "initialState": "{水果}放置在左侧，{扫码物品}放置在中部",
+  "countdownSeconds": 5,
+  "abnormalRatio": 20,
+  "duration": 24,
+  "minDuration": 3,
+  "planCollectCount": 60,
+  "normalPlanCount": 48,
+  "abnormalPlanCount": 12,
+  "videoQuality": 1,
+  "recognitionEnabled": false,
+  "spaceIds": [
+    "<spaceId>"
+  ],
+  "customLabelIds": [
+    "<customLabelId>"
+  ],
+  "collectors": [
+    {
+      "userId": "<collectorUserId>",
+      "userName": "collector",
+      "displayName": "采集员",
+      "enabled": true
+    }
+  ],
+  "auditors": [
+    {
+      "userId": "<auditorUserId>",
+      "userName": "checker",
+      "displayName": "审核员",
+      "enabled": true
+    }
+  ],
+  "actionSteps": [
+    {
+      "stepOrder": 1,
+      "duration": 5,
+      "deviation": 1,
+      "actionText": "将{水果}移动到{扫码物品}前方",
+      "atomicAbilityId": "<atomicAbilityId>"
+    }
+  ],
+  "objectBindings": [
+    {
+      "placeholder": "水果",
+      "objectCategoryId": "<objectCategoryId>",
+      "objectItemIds": [
+        "<objectItemId>"
+      ]
+    }
+  ]
+}

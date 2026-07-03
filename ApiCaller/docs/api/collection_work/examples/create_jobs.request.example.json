@@ -1,0 +1,38 @@
+{
+  "jobs": [
+    {
+      "name": "苹果收银",
+      "description": "采集苹果收银扫码数据",
+      "requiredRepeat": 100,
+      "requiredMember": 1,
+      "type": 1,
+      "items": [
+        {
+          "displayName": "苹果",
+          "img": "<objectItemImageUrl>",
+          "name": "苹果",
+          "type": 1,
+          "value": "<objectItemId>",
+          "valueName": "苹果"
+        }
+      ]
+    },
+    {
+      "name": "香蕉收银",
+      "description": "采集香蕉收银扫码数据",
+      "requiredRepeat": 100,
+      "requiredMember": 1,
+      "type": 1,
+      "items": [
+        {
+          "displayName": "香蕉",
+          "img": "<objectItemImageUrl>",
+          "name": "香蕉",
+          "type": 1,
+          "value": "<objectItemId>",
+          "valueName": "香蕉"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "deviceCode": "robot-001",
+  "deviceTypeId": "<deviceTypeId>",
+  "deviceName": "收银采集设备 001",
+  "modules": [
+    "rgbd_camera",
+    "robot_arm"
+  ],
+  "status": 1
+}

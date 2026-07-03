@@ -1,0 +1,36 @@
+{
+  "projectId": "<projectId>",
+  "sceneId": "<sceneId>",
+  "title": "收银区视频指令采集",
+  "description": "按提示采集商超收银区视频",
+  "taskPurposeId": "<taskPurposeId>",
+  "collectMethod": "web_video",
+  "taskCategory": "instruction",
+  "promptInstruction": "请采集包含收银员扫码、顾客付款和商品摆放的收银区视频",
+  "collectModeId": "<collectModeId>",
+  "collectSchemeId": "<collectSchemeId>",
+  "spaceIds": [
+    "<spaceId>"
+  ],
+  "customLabelIds": [
+    "<customLabelId>"
+  ],
+  "collectors": [
+    {
+      "userId": "<collectorUserId>",
+      "userName": "collector",
+      "displayName": "采集员",
+      "enabled": true
+    }
+  ],
+  "auditors": [
+    {
+      "userId": "<auditorUserId>",
+      "userName": "checker",
+      "displayName": "审核员",
+      "enabled": true
+    }
+  ],
+  "planCollectCount": 100,
+  "videoQuality": 1
+}

@@ -1,0 +1,35 @@
+{
+  "projectId": "<projectId>",
+  "sceneId": "<sceneId>",
+  "title": "商超收银区视频采集",
+  "description": "采集商超收银区内的场景视频",
+  "taskPurposeId": "<taskPurposeId>",
+  "collectMethod": "web_video",
+  "taskCategory": "scene",
+  "collectModeId": "<collectModeId>",
+  "collectSchemeId": "<collectSchemeId>",
+  "spaceIds": [
+    "<spaceId>"
+  ],
+  "customLabelIds": [
+    "<customLabelId>"
+  ],
+  "collectors": [
+    {
+      "userId": "<collectorUserId>",
+      "userName": "collector",
+      "displayName": "采集员",
+      "enabled": true
+    }
+  ],
+  "auditors": [
+    {
+      "userId": "<auditorUserId>",
+      "userName": "checker",
+      "displayName": "审核员",
+      "enabled": true
+    }
+  ],
+  "planCollectCount": 100,
+  "videoQuality": 1
+}

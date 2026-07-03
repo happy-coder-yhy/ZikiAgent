@@ -1,0 +1,97 @@
+{
+  "code": 0,
+  "reason": "",
+  "message": "success",
+  "metadata": [
+    {
+      "id": "<taskId>",
+      "projectId": "<projectId>",
+      "projectName": "XX超市数据采集项目",
+      "templateId": "<templateId>",
+      "templateTitle": "收银任务采集",
+      "title": "收银任务采集",
+      "description": "对收银技能的动作采集",
+      "remark": "手工生成",
+      "sceneId": "<sceneId>",
+      "sceneName": "收银",
+      "mainSceneId": "<mainSceneId>",
+      "mainSceneName": "商超",
+      "spaceIds": [
+        "<spaceId>"
+      ],
+      "spaceItems": [
+        {
+          "id": "<spaceId>",
+          "name": "收银区"
+        }
+      ],
+      "taskPurposeId": "<taskPurposeId>",
+      "taskPurposeName": "运营试采",
+      "collectSchemeId": "<collectSchemeId>",
+      "collectSchemeName": "VR",
+      "collectModeId": "<collectModeId>",
+      "collectModeName": "双臂",
+      "deviceTypeId": "<deviceTypeId>",
+      "deviceTypeName": "O1-eHand-RGBD",
+      "collectMethod": "robot",
+      "taskCategory": "strict",
+      "taskType": "<taskType>",
+      "taskTypeName": "短程",
+      "difficulty": 1,
+      "abnormalRatio": 20,
+      "countdownSeconds": 10,
+      "planCollectCount": 60,
+      "normalPlanCount": 48,
+      "abnormalPlanCount": 12,
+      "minDuration": 3,
+      "duration": 24,
+      "videoQuality": 1,
+      "recognitionEnabled": false,
+      "customLabelIds": null,
+      "customLabelItems": [],
+      "auditLabelIds": [],
+      "auditLabelItems": [],
+      "normalCollectCount": 0,
+      "abnormalCollectCount": 0,
+      "normalAuditCount": 0,
+      "abnormalAuditCount": 0,
+      "jobCount": 2,
+      "initialState": "{水果}放置在左侧，{扫码物品}放置在中部",
+      "status": 1,
+      "createdBy": "<createdBy>",
+      "createdByDisplayName": "<createdByDisplayName>",
+      "createdAt": "<createdAt>",
+      "updatedAt": "<updatedAt>",
+      "auditors": [],
+      "collectors": [],
+      "actionSteps": [
+        {
+          "id": "<actionStepId>",
+          "stepOrder": 1,
+          "duration": 5,
+          "deviation": 1,
+          "actionText": "{水果}放置在左侧，{扫码物品}放置在中部",
+          "atomicAbilityId": "<atomicAbilityId>",
+          "atomicAbilityName": "Grasp（抓取）"
+        }
+      ],
+      "objectBindings": [
+        {
+          "id": "<objectBindingId>",
+          "placeholder": "水果",
+          "objectCategoryId": "<objectCategoryId>",
+          "objectCategoryName": "水果",
+          "objectItemIds": [
+            "<objectItemId>"
+          ],
+          "objectItems": [
+            {
+              "id": "<objectItemId>",
+              "name": "苹果"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

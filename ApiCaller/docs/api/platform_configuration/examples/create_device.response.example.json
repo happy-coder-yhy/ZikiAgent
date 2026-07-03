@@ -1,0 +1,19 @@
+{
+  "code": 0,
+  "reason": "",
+  "message": "success",
+  "metadata": {
+    "id": "<deviceId>",
+    "deviceCode": "robot-001",
+    "deviceName": "收银采集设备 001",
+    "deviceTypeId": "<deviceTypeId>",
+    "deviceTypeName": "O1-eHand-RGBD",
+    "modules": [
+      "rgbd_camera",
+      "robot_arm"
+    ],
+    "status": 1,
+    "createdAt": "<createdAt>",
+    "updatedAt": "<updatedAt>"
+  }
+}

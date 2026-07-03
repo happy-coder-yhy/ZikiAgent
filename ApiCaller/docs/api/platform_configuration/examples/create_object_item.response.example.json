@@ -1,0 +1,20 @@
+{
+  "code": 0,
+  "reason": "",
+  "message": "success",
+  "metadata": {
+    "id": "<objectItemId>",
+    "categoryId": "<objectCategoryId>",
+    "categoryName": "水果",
+    "code": "apple",
+    "name": "苹果",
+    "fileObjectKey": "<fileObjectKey>",
+    "thumbnailObjectKey": "<thumbnailObjectKey>",
+    "fileUrl": "<fileUrl>",
+    "thumbnailUrl": "<thumbnailUrl>",
+    "description": "红色苹果，用于收银扫码采集",
+    "status": 1,
+    "createdAt": "<createdAt>",
+    "updatedAt": "<updatedAt>"
+  }
+}

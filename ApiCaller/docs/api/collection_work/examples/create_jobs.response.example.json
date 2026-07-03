@@ -1,0 +1,59 @@
+{
+  "code": 0,
+  "reason": "",
+  "message": "success",
+  "metadata": [
+    {
+      "id": "<jobId>",
+      "taskId": "<taskId>",
+      "taskTitle": "物品收银扫码",
+      "name": "苹果收银",
+      "description": "采集苹果收银扫码数据",
+      "requiredRepeat": 100,
+      "requiredMember": 1,
+      "type": 1,
+      "items": [
+        {
+          "id": "<jobItemId>",
+          "displayName": "苹果",
+          "img": "<objectItemImageUrl>",
+          "name": "苹果",
+          "type": 1,
+          "value": "<objectItemId>",
+          "valueName": "苹果"
+        }
+      ],
+      "receiveCount": 0,
+      "finishedCount": 0,
+      "reviewStatus": 0,
+      "createdAt": "<createdAt>",
+      "updatedAt": "<updatedAt>"
+    },
+    {
+      "id": "<jobId>",
+      "taskId": "<taskId>",
+      "taskTitle": "物品收银扫码",
+      "name": "香蕉收银",
+      "description": "采集香蕉收银扫码数据",
+      "requiredRepeat": 100,
+      "requiredMember": 1,
+      "type": 1,
+      "items": [
+        {
+          "id": "<jobItemId>",
+          "displayName": "香蕉",
+          "img": "<objectItemImageUrl>",
+          "name": "香蕉",
+          "type": 1,
+          "value": "<objectItemId>",
+          "valueName": "香蕉"
+        }
+      ],
+      "receiveCount": 0,
+      "finishedCount": 0,
+      "reviewStatus": 0,
+      "createdAt": "<createdAt>",
+      "updatedAt": "<updatedAt>"
+    }
+  ]
+}

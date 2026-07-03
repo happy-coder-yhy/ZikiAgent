@@ -1,0 +1,8 @@
+{
+  "categoryCode": "scene",
+  "name": "商超",
+  "code": "supermarket",
+  "description": "商超场景",
+  "parentId": "<parentId>",
+  "sortOrder": 1
+}

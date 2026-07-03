@@ -1,0 +1,10 @@
+{
+  "name": "场景标签",
+  "code": "scene",
+  "description": "用于标识采集任务所在场景",
+  "isMultiple": false,
+  "isTree": true,
+  "parentCode": "<parentCode>",
+  "sortOrder": 1,
+  "status": 1
+}

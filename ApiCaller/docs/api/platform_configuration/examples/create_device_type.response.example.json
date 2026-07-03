@@ -1,0 +1,18 @@
+{
+  "code": 0,
+  "reason": "",
+  "message": "success",
+  "metadata": {
+    "id": "<deviceTypeId>",
+    "name": "O1-eHand-RGBD",
+    "description": "带 RGBD 相机的机械臂采集设备类型",
+    "deviceBodyId": "<deviceBodyId>",
+    "deviceCameraId": "<deviceCameraId>",
+    "deviceEndId": "<deviceEndId>",
+    "fileObjectKey": "<fileObjectKey>",
+    "thumbnailObjectKey": "<thumbnailObjectKey>",
+    "status": 1,
+    "createdAt": "<createdAt>",
+    "updatedAt": "<updatedAt>"
+  }
+}

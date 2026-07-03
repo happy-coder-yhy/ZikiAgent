@@ -1,0 +1,3 @@
+# Use Example JSON For Human-Readable POST Payloads
+
+POST request and response examples should first be maintained as human-readable `*.request.example.json` and `*.response.example.json` files, with Markdown pages linking to them. Formal JSON Schema files should be added only when tests, verifier logic, or code generation need machine-readable validation. Example placeholders should follow OpenAPI field style, such as `<projectId>` and `<sceneId>`, so they align with Markdown field tables and public API boundaries. Response examples should preserve complete representative response structures rather than prematurely trimming fields, because it is too early to know which returned fields downstream developers will need.

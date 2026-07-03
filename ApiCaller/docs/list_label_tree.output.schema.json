@@ -1,0 +1,104 @@
+{
+  "code": 0,
+  "message": "success",
+  "metadata": [
+    {
+      "children": [
+        {
+          "code": "label_pa62",
+          "id": 160,
+          "isSystem": 0,
+          "name": "烹饪",
+          "sortOrder": 0
+        },
+        {
+          "code": "label_ywt6",
+          "id": 161,
+          "isSystem": 0,
+          "name": "整理",
+          "sortOrder": 0
+        },
+        {
+          "code": "label_rsy6",
+          "id": 162,
+          "isSystem": 0,
+          "name": "清洁",
+          "sortOrder": 0
+        },
+        {
+          "code": "label_v5bb",
+          "id": 163,
+          "isSystem": 0,
+          "name": "收纳",
+          "sortOrder": 0
+        }
+      ],
+      "code": "label_juwe",
+      "id": 159,
+      "isSystem": 0,
+      "name": "居家",
+      "sortOrder": 0
+    },
+    {
+      "children": [
+        {
+          "code": "label_rbic",
+          "id": 165,
+          "isSystem": 0,
+          "name": "收银",
+          "sortOrder": 0
+        },
+        {
+          "code": "label_7gy7",
+          "id": 166,
+          "isSystem": 0,
+          "name": "理货",
+          "sortOrder": 0
+        },
+        {
+          "code": "label_k3gu",
+          "id": 167,
+          "isSystem": 0,
+          "name": "称重",
+          "sortOrder": 0
+        }
+      ],
+      "code": "label_k8co",
+      "id": 164,
+      "isSystem": 0,
+      "name": "商超",
+      "sortOrder": 0
+    },
+    {
+      "children": [
+        {
+          "code": "label_8omj",
+          "id": 169,
+          "isSystem": 0,
+          "name": "流水线",
+          "sortOrder": 0
+        },
+        {
+          "code": "label_5id3",
+          "id": 170,
+          "isSystem": 0,
+          "name": "搬运",
+          "sortOrder": 0
+        },
+        {
+          "code": "label_9603",
+          "id": 171,
+          "isSystem": 0,
+          "name": "整理",
+          "sortOrder": 0
+        }
+      ],
+      "code": "label_kvbz",
+      "id": 168,
+      "isSystem": 0,
+      "name": "工厂",
+      "sortOrder": 0
+    }
+  ],
+  "reason": ""
+}

@@ -1,0 +1,22 @@
+{
+  "code": 0,
+  "reason": "",
+  "message": "success",
+  "metadata": {
+    "id": "<projectId>",
+    "name": "XX超市数据采集项目",
+    "description": "XX超市收银与货架整理采集需求",
+    "sceneIds": [
+      "<sceneId>"
+    ],
+    "sceneItems": [
+      {
+        "id": "<sceneId>",
+        "name": "商超"
+      }
+    ],
+    "status": 1,
+    "createdAt": "<createdAt>",
+    "updatedAt": "<updatedAt>"
+  }
+}

@@ -1,0 +1,2864 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "data-rbac API",
+    "description": "",
+    "version": "0.0.1"
+  },
+  "tags": [
+    {
+      "name": "Casdoor"
+    }
+  ],
+  "paths": {
+    "/api/signin": {
+      "post": {
+        "summary": "Casdoor_Signin",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_Signin",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.SigninRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/captcha": {
+      "get": {
+        "summary": "Casdoor_GetCaptcha",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_GetCaptcha",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.GetCaptchaReply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/check/organization": {
+      "get": {
+        "summary": "Casdoor_CheckOrganization",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_CheckOrganization",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/email/provider": {
+      "put": {
+        "summary": "Casdoor_UpdateEmailProvider",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_UpdateEmailProvider",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.UpdateEmailProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "summary": "Casdoor_AddEmailProvider",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_AddEmailProvider",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.AddEmailProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "delete": {
+        "summary": "Casdoor_DeleteEmailProvider",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_DeleteEmailProvider",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/email/providers": {
+      "get": {
+        "summary": "Casdoor_GetEmailProvider",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_GetEmailProvider",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.GetEmailProvidersReply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/initial/organization": {
+      "post": {
+        "summary": "Casdoor_InitialNewOrganization",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_InitialNewOrganization",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.InitialNewOrganizationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/login": {
+      "post": {
+        "summary": "Casdoor_Login",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_Login",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.LoginReply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/logout": {
+      "post": {
+        "summary": "Casdoor_Logout",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_Logout",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.LogoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/organization": {
+      "delete": {
+        "summary": "Casdoor_DeleteOrganization",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_DeleteOrganization",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/organizations": {
+      "get": {
+        "summary": "Casdoor_GetOrganizations",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_GetOrganizations",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [
+          {
+            "name": "pageNum",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.GetOrganizationsReply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/permission": {
+      "get": {
+        "summary": "Casdoor_Permission",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_Permission",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.PermissionReply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "summary": "Casdoor_CheckPermission",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_CheckPermission",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.CheckPermissionRequest"
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.CheckPermissionReply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/refreshToken": {
+      "post": {
+        "summary": "Casdoor_RefreshToken",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_RefreshToken",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.RefreshTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.LoginReply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/reset/password": {
+      "post": {
+        "summary": "Casdoor_ResetPassword",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_ResetPassword",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.ResetPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/send/verification/code": {
+      "post": {
+        "summary": "Casdoor_SendVerificationCode",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_SendVerificationCode",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.SendVerificationCodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/set/password": {
+      "post": {
+        "summary": "Casdoor_SetPassword",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_SetPassword",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.SetPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/user": {
+      "get": {
+        "summary": "Casdoor_GetUser",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_GetUser",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.GetUserReply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "put": {
+        "summary": "Casdoor_UpdateUser",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_UpdateUser",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.UpdateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "summary": "Casdoor_AddUser",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_AddUser",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.AddUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "delete": {
+        "summary": "Casdoor_DeleteUser",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_DeleteUser",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/user/group": {
+      "get": {
+        "summary": "Casdoor_GetUserGroup",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_GetUserGroup",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.UserGroupReply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "put": {
+        "summary": "Casdoor_UpdateUserGroup",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_UpdateUserGroup",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.UpdateUserGroupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "summary": "Casdoor_AddUserGroup",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_AddUserGroup",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.AddUserGroupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "delete": {
+        "summary": "Casdoor_DeleteUserGroup",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_DeleteUserGroup",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/user/groups": {
+      "get": {
+        "summary": "Casdoor_GetUserGroups",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_GetUserGroups",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [
+          {
+            "name": "pageNum",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.UserGroupsReply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/user/role": {
+      "get": {
+        "summary": "Casdoor_GetUserRole",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_GetUserRole",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.GetUserRoleReply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "put": {
+        "summary": "Casdoor_UpdateUserRole",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_UpdateUserRole",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.UpdateUserRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "summary": "Casdoor_AddUserRole",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_AddUserRole",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/casdoor.v1.AddUserRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "delete": {
+        "summary": "Casdoor_DeleteUserRole",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_DeleteUserRole",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.Reply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/user/roles": {
+      "get": {
+        "summary": "Casdoor_GetUserRoles",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_GetUserRoles",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [
+          {
+            "name": "pageNum",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.GetUserRolesReply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/userinfo": {
+      "get": {
+        "summary": "Casdoor_Userinfo",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_Userinfo",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.UserinfoReply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/users": {
+      "get": {
+        "summary": "Casdoor_GetUsers",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_GetUsers",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [
+          {
+            "name": "pageNum",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.GetUsersReply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/users/name": {
+      "get": {
+        "summary": "Casdoor_GetUsersByName",
+        "deprecated": false,
+        "description": "",
+        "operationId": "Casdoor_GetUsersByName",
+        "tags": [
+          "Casdoor"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/casdoor.v1.GetUsersReply"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "casdoor.v1.AccessToken": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "idToken": {
+            "type": "string"
+          },
+          "tokenType": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.AddUserGroupRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "isTopGroup": {
+            "type": "boolean"
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "casdoor.v1.AddEmailProviderRequest": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "clientSecret": {
+            "type": "string"
+          },
+          "clientId2": {
+            "type": "string"
+          },
+          "clientSecret2": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "disableSsl": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.AddUserRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "isForbidden": {
+            "type": "boolean"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "casdoor.v1.AddUserRoleRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "apiPermissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rbacPermissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "casdoor.v1.CheckPermissionReply": {
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.CheckPermissionRequest": {
+        "type": "object",
+        "properties": {
+          "resource": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.GetOrganizationsReply": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/casdoor.v1.GetOrganizationsReply_Metadata"
+          }
+        }
+      },
+      "casdoor.v1.GetCaptchaReply": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/casdoor.v1.GetCaptchaReply_Metadata"
+          }
+        }
+      },
+      "casdoor.v1.GetOrganizationsReply_Metadata": {
+        "type": "object",
+        "properties": {
+          "pageNum": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/casdoor.v1.Organization"
+            }
+          }
+        }
+      },
+      "casdoor.v1.GetCaptchaReply_Metadata": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "captchaId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "captchaImage": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.GetUserReply": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/casdoor.v1.UserData"
+          }
+        }
+      },
+      "casdoor.v1.GetEmailProvidersReply": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/casdoor.v1.GetEmailProvidersReply_Metadata"
+          }
+        }
+      },
+      "casdoor.v1.GetUserRoleReply": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/casdoor.v1.RoleData"
+          }
+        }
+      },
+      "casdoor.v1.GetEmailProvidersReply_Metadata": {
+        "type": "object",
+        "properties": {
+          "pageNum": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/casdoor.v1.Provider"
+            }
+          }
+        }
+      },
+      "casdoor.v1.GetUserRolesReply": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/casdoor.v1.GetUserRolesReply_Metadata"
+          }
+        }
+      },
+      "casdoor.v1.GetUserRolesReply_Metadata": {
+        "type": "object",
+        "properties": {
+          "pageNum": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/casdoor.v1.RolesData"
+            }
+          }
+        }
+      },
+      "casdoor.v1.GetUsersReply": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/casdoor.v1.GetUsersReply_Metadata"
+          }
+        }
+      },
+      "casdoor.v1.GetUsersReply_Metadata": {
+        "type": "object",
+        "properties": {
+          "pageNum": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/casdoor.v1.UserData"
+            }
+          }
+        }
+      },
+      "casdoor.v1.InitialNewOrganizationRequest": {
+        "type": "object",
+        "properties": {
+          "organization": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "application": {
+            "type": "string"
+          },
+          "applicationName": {
+            "type": "string"
+          },
+          "adminPassword": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.LoginReply": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/casdoor.v1.AccessToken"
+          }
+        }
+      },
+      "casdoor.v1.LoginRequest": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.LogoutRequest": {
+        "type": "object",
+        "properties": {}
+      },
+      "casdoor.v1.Organization": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "createTime": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.Permission": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "api": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "allowed": {
+            "type": "boolean"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/casdoor.v1.Permission"
+            }
+          }
+        }
+      },
+      "casdoor.v1.PermissionReply": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/casdoor.v1.PermissionReply_Metadata"
+          }
+        }
+      },
+      "casdoor.v1.PermissionReply_Metadata": {
+        "type": "object",
+        "properties": {
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/casdoor.v1.Permission"
+            }
+          }
+        }
+      },
+      "casdoor.v1.RefreshTokenRequest": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.Reply": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.ResetPasswordRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "oldPassword": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.RoleData": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "createTime": {
+            "type": "string"
+          },
+          "updateTime": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/casdoor.v1.UserData"
+            }
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/casdoor.v1.Permission"
+            }
+          }
+        }
+      },
+      "casdoor.v1.RolesData": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "createTime": {
+            "type": "string"
+          },
+          "updateTime": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/casdoor.v1.Permission"
+            }
+          }
+        }
+      },
+      "casdoor.v1.Provider": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "clientSecret": {
+            "type": "string"
+          },
+          "clientId2": {
+            "type": "string"
+          },
+          "clientSecret2": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "disableSsl": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.SigninRequest": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.UpdateUserGroupRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "casdoor.v1.UpdateUserRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "isForbidden": {
+            "type": "boolean"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "casdoor.v1.UpdateUserRoleRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "apiPermissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rbacPermissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "casdoor.v1.UserData": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "createTime": {
+            "type": "string"
+          },
+          "updateTime": {
+            "type": "string"
+          },
+          "deletedTime": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "externalId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "passwordSalt": {
+            "type": "string"
+          },
+          "passwordType": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "avatar": {
+            "type": "string"
+          },
+          "avatarType": {
+            "type": "string"
+          },
+          "permanentAvatar": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "emailVerified": {
+            "type": "boolean"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "countryCode": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "address": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "affiliation": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "idCardType": {
+            "type": "string"
+          },
+          "idCard": {
+            "type": "string"
+          },
+          "homepage": {
+            "type": "string"
+          },
+          "bio": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "gender": {
+            "type": "string"
+          },
+          "birthday": {
+            "type": "string"
+          },
+          "education": {
+            "type": "string"
+          },
+          "score": {
+            "type": "integer",
+            "format": "uint32"
+          },
+          "karma": {
+            "type": "integer",
+            "format": "uint32"
+          },
+          "ranking": {
+            "type": "integer",
+            "format": "uint32"
+          },
+          "balance": {
+            "type": "integer",
+            "format": "uint32"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "isDefaultAvatar": {
+            "type": "boolean"
+          },
+          "isOnline": {
+            "type": "boolean"
+          },
+          "isAdmin": {
+            "type": "boolean"
+          },
+          "isForbidden": {
+            "type": "boolean"
+          },
+          "isDeleted": {
+            "type": "boolean"
+          },
+          "signupApplication": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "preHash": {
+            "type": "string"
+          },
+          "accessKey": {
+            "type": "string"
+          },
+          "accessSecret": {
+            "type": "string"
+          },
+          "accessToken": {
+            "type": "string"
+          },
+          "createdIp": {
+            "type": "string"
+          },
+          "lastSigninTime": {
+            "type": "string"
+          },
+          "lastSigninIp": {
+            "type": "string"
+          },
+          "github": {
+            "type": "string"
+          },
+          "google": {
+            "type": "string"
+          },
+          "qq": {
+            "type": "string"
+          },
+          "wechat": {
+            "type": "string"
+          },
+          "facebook": {
+            "type": "string"
+          },
+          "dingtalk": {
+            "type": "string"
+          },
+          "weibo": {
+            "type": "string"
+          },
+          "gitee": {
+            "type": "string"
+          },
+          "linkedin": {
+            "type": "string"
+          },
+          "wecom": {
+            "type": "string"
+          },
+          "lark": {
+            "type": "string"
+          },
+          "gitlab": {
+            "type": "string"
+          },
+          "adfs": {
+            "type": "string"
+          },
+          "baidu": {
+            "type": "string"
+          },
+          "alipay": {
+            "type": "string"
+          },
+          "casdoor": {
+            "type": "string"
+          },
+          "infoflow": {
+            "type": "string"
+          },
+          "apple": {
+            "type": "string"
+          },
+          "azuread": {
+            "type": "string"
+          },
+          "azureadb2c": {
+            "type": "string"
+          },
+          "slack": {
+            "type": "string"
+          },
+          "steam": {
+            "type": "string"
+          },
+          "bilibili": {
+            "type": "string"
+          },
+          "okta": {
+            "type": "string"
+          },
+          "douyin": {
+            "type": "string"
+          },
+          "line": {
+            "type": "string"
+          },
+          "amazon": {
+            "type": "string"
+          },
+          "auth0": {
+            "type": "string"
+          },
+          "battlenet": {
+            "type": "string"
+          },
+          "bitbucket": {
+            "type": "string"
+          },
+          "box": {
+            "type": "string"
+          },
+          "cloudfoundry": {
+            "type": "string"
+          },
+          "dailymotion": {
+            "type": "string"
+          },
+          "deezer": {
+            "type": "string"
+          },
+          "digitalocean": {
+            "type": "string"
+          },
+          "discord": {
+            "type": "string"
+          },
+          "dropbox": {
+            "type": "string"
+          },
+          "eveonline": {
+            "type": "string"
+          },
+          "fitbit": {
+            "type": "string"
+          },
+          "gitea": {
+            "type": "string"
+          },
+          "heroku": {
+            "type": "string"
+          },
+          "influxcloud": {
+            "type": "string"
+          },
+          "instagram": {
+            "type": "string"
+          },
+          "intercom": {
+            "type": "string"
+          },
+          "kakao": {
+            "type": "string"
+          },
+          "lastfm": {
+            "type": "string"
+          },
+          "mailru": {
+            "type": "string"
+          },
+          "meetup": {
+            "type": "string"
+          },
+          "microsoftonline": {
+            "type": "string"
+          },
+          "naver": {
+            "type": "string"
+          },
+          "nextcloud": {
+            "type": "string"
+          },
+          "onedrive": {
+            "type": "string"
+          },
+          "oura": {
+            "type": "string"
+          },
+          "patreon": {
+            "type": "string"
+          },
+          "paypal": {
+            "type": "string"
+          },
+          "salesforce": {
+            "type": "string"
+          },
+          "shopify": {
+            "type": "string"
+          },
+          "soundcloud": {
+            "type": "string"
+          },
+          "spotify": {
+            "type": "string"
+          },
+          "strava": {
+            "type": "string"
+          },
+          "stripe": {
+            "type": "string"
+          },
+          "tiktok": {
+            "type": "string"
+          },
+          "tumblr": {
+            "type": "string"
+          },
+          "twitch": {
+            "type": "string"
+          },
+          "twitter": {
+            "type": "string"
+          },
+          "typetalk": {
+            "type": "string"
+          },
+          "uber": {
+            "type": "string"
+          },
+          "vk": {
+            "type": "string"
+          },
+          "wepay": {
+            "type": "string"
+          },
+          "xero": {
+            "type": "string"
+          },
+          "yahoo": {
+            "type": "string"
+          },
+          "yammer": {
+            "type": "string"
+          },
+          "yandex": {
+            "type": "string"
+          },
+          "zoom": {
+            "type": "string"
+          },
+          "metamask": {
+            "type": "string"
+          },
+          "web3onboard": {
+            "type": "string"
+          },
+          "custom": {
+            "type": "string"
+          },
+          "webauthnCredentials": {
+            "$ref": "#/components/schemas/google.protobuf.Any"
+          },
+          "preferredMfaType": {
+            "type": "string"
+          },
+          "recoveryCodes": {
+            "$ref": "#/components/schemas/google.protobuf.Any"
+          },
+          "totpSecret": {
+            "type": "string"
+          },
+          "mfaPhoneEnabled": {
+            "type": "boolean"
+          },
+          "mfaEmailEnabled": {
+            "type": "boolean"
+          },
+          "invitation": {
+            "type": "string"
+          },
+          "invitationCode": {
+            "type": "string"
+          },
+          "faceIds": {
+            "$ref": "#/components/schemas/google.protobuf.Any"
+          },
+          "ldap": {
+            "type": "string"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/casdoor.v1.UserData_Properties"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lastSigninWrongTime": {
+            "type": "string"
+          },
+          "signinWrongTimes": {
+            "type": "integer",
+            "format": "uint32"
+          },
+          "managedAccounts": {
+            "$ref": "#/components/schemas/google.protobuf.Any"
+          }
+        }
+      },
+      "casdoor.v1.UserData_Properties": {
+        "type": "object",
+        "properties": {
+          "no": {
+            "type": "string"
+          },
+          "oauthGoogleAvatarUrl": {
+            "type": "string"
+          },
+          "oauthGoogleDisplayName": {
+            "type": "string"
+          },
+          "oauthGoogleEmail": {
+            "type": "string"
+          },
+          "oauthGoogleId": {
+            "type": "string"
+          },
+          "oauthGoogleUsername": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.SendVerificationCodeRequest": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "captchaType": {
+            "type": "string"
+          },
+          "captchaToken": {
+            "type": "string"
+          },
+          "clientSecret": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "dest": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.UserGroupData": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "createTime": {
+            "type": "string"
+          },
+          "updateTime": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "manager": {
+            "type": "string"
+          },
+          "contactEmail": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "isTopGroup": {
+            "type": "boolean"
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/casdoor.v1.UserData"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/casdoor.v1.UserGroupData"
+            }
+          },
+          "isEnabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "casdoor.v1.SetPasswordRequest": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "oldPassword": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.UserGroupReply": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/casdoor.v1.UserGroupData"
+          }
+        }
+      },
+      "casdoor.v1.UserGroupsReply": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/casdoor.v1.UserGroupsReply_Metadata"
+          }
+        }
+      },
+      "casdoor.v1.UpdateEmailProviderRequest": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "clientSecret": {
+            "type": "string"
+          },
+          "clientId2": {
+            "type": "string"
+          },
+          "clientSecret2": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "disableSsl": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        }
+      },
+      "casdoor.v1.UserGroupsReply_Metadata": {
+        "type": "object",
+        "properties": {
+          "pageNum": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/casdoor.v1.UserGroupData"
+            }
+          }
+        }
+      },
+      "casdoor.v1.UserinfoReply": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/casdoor.v1.UserData"
+          }
+        }
+      },
+      "google.protobuf.Any": {
+        "type": "object",
+        "properties": {
+          "@type": {
+            "type": "string",
+            "description": "The type of the serialized message."
+          }
+        },
+        "additionalProperties": true,
+        "description": "Contains an arbitrary serialized message along with a @type that describes the type of the serialized message."
+      }
+    },
+    "responses": {},
+    "securitySchemes": {}
+  },
+  "servers": [],
+  "security": []
+}

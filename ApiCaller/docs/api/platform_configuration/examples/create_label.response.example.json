@@ -1,0 +1,18 @@
+{
+  "code": 0,
+  "reason": "",
+  "message": "success",
+  "metadata": {
+    "id": "<labelId>",
+    "categoryCode": "scene",
+    "categoryName": "场景标签",
+    "name": "商超",
+    "code": "supermarket",
+    "description": "商超场景",
+    "parentId": "<parentId>",
+    "sortOrder": 1,
+    "status": 1,
+    "createdAt": "<createdAt>",
+    "updatedAt": "<updatedAt>"
+  }
+}

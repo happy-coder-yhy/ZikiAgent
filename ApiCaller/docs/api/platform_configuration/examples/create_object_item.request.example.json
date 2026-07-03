@@ -1,0 +1,11 @@
+{
+  "categoryId": "<objectCategoryId>",
+  "name": "苹果",
+  "code": "apple",
+  "description": "红色苹果，用于收银扫码采集",
+  "fileObjectKey": "<fileObjectKey>",
+  "fileUrl": "<fileUrl>",
+  "thumbnailObjectKey": "<thumbnailObjectKey>",
+  "thumbnailUrl": "<thumbnailUrl>",
+  "status": 1
+}

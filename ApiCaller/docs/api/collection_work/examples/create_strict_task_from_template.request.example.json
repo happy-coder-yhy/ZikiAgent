@@ -1,0 +1,38 @@
+{
+  "projectId": "<projectId>",
+  "taskPurposeId": "<taskPurposeId>",
+  "collectMethod": "robot",
+  "collectModeId": "<collectModeId>",
+  "videoQuality": 1,
+  "collectSchemeId": "<collectSchemeId>",
+  "deviceTypeId": "<deviceTypeId>",
+  "abnormalRatio": 20,
+  "countdownSeconds": 10,
+  "collectors": [
+    {
+      "userId": "<collectorUserId>",
+      "userName": "collector",
+      "displayName": "采集员",
+      "enabled": true
+    }
+  ],
+  "auditors": [
+    {
+      "userId": "<auditorUserId>",
+      "userName": "checker",
+      "displayName": "审核员",
+      "enabled": true
+    }
+  ],
+  "duration": 24,
+  "minDuration": 3,
+  "planCollectCount": 60,
+  "templateItems": [
+    {
+      "templateId": "<templateId>",
+      "autoCreateInstance": true,
+      "jobCount": 2,
+      "jobPlanCollectCount": 30
+    }
+  ]
+}
