@@ -285,6 +285,166 @@ class MCPToolFunctionsTest(unittest.TestCase):
         self.assertIn("困难", result["error"])
 
 
+    # ------------------------------------------------------------------
+    # 测试: get_projects
+    # ------------------------------------------------------------------
+
+    def test_get_projects_success(self):
+        """get_projects 成功返回项目列表。"""
+        self.mock_caller.list_projects.return_value = APIResponse(
+            status_code=200,
+            headers={},
+            body={
+                "code": 0,
+                "metadata": {
+                    "records": [
+                        {"id": 1, "name": "测试项目A", "description": "项目A描述"},
+                        {"id": 2, "name": "测试项目B", "description": None},
+                    ]
+                },
+            },
+            raw_text='...',
+        )
+
+        result_str = self.tools["get_projects"]()
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["total"], 2)
+        self.assertEqual(result["projects"][0]["name"], "测试项目A")
+        self.assertEqual(result["projects"][0]["description"], "项目A描述")
+        self.assertEqual(result["projects"][1]["name"], "测试项目B")
+
+    def test_get_projects_with_name_filter(self):
+        """get_projects 支持按名称筛选。"""
+        self.mock_caller.list_projects.return_value = APIResponse(
+            status_code=200,
+            headers={},
+            body={"code": 0, "metadata": {"records": [{"id": 3, "name": "筛选项目"}]}},
+            raw_text='...',
+        )
+
+        result_str = self.tools["get_projects"](name="筛选", page_num=1, page_size=50)
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(len(result["projects"]), 1)
+        self.assertEqual(result["projects"][0]["name"], "筛选项目")
+        self.mock_caller.list_projects.assert_called_with(
+            name="筛选", pageNum=1, pageSize=50
+        )
+
+    def test_get_projects_empty(self):
+        """get_projects 没有项目时返回空列表。"""
+        self.mock_caller.list_projects.return_value = APIResponse(
+            status_code=200,
+            headers={},
+            body={"code": 0, "metadata": {"records": []}},
+            raw_text='...',
+        )
+
+        result_str = self.tools["get_projects"]()
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["total"], 0)
+        self.assertEqual(result["projects"], [])
+
+    def test_get_projects_http_error(self):
+        """get_projects API 返回非 200 时正确处理。"""
+        self.mock_caller.list_projects.return_value = APIResponse(
+            status_code=500,
+            headers={},
+            body={"message": "服务器错误"},
+            raw_text='...',
+        )
+
+        result_str = self.tools["get_projects"]()
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("500", result["error"])
+
+    def test_get_projects_exception(self):
+        """get_projects 异常时返回错误 JSON。"""
+        self.mock_caller.list_projects.side_effect = RuntimeError("网络超时")
+
+        result_str = self.tools["get_projects"]()
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("网络超时", result["error"])
+
+    # ------------------------------------------------------------------
+    # 测试: create_project
+    # ------------------------------------------------------------------
+
+    def test_create_project_success(self):
+        """create_project 成功创建项目。"""
+        self.mock_caller.create_project.return_value = APIResponse(
+            status_code=200,
+            headers={},
+            body={"id": 10, "name": "新项目"},
+            raw_text='...',
+        )
+
+        result_str = self.tools["create_project"](name="新项目")
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["data"]["id"], 10)
+        self.mock_caller.create_project.assert_called_once_with(
+            name="新项目",
+            description=None,
+        )
+
+    def test_create_project_with_description(self):
+        """create_project 传入描述。"""
+        self.mock_caller.create_project.return_value = APIResponse(
+            status_code=200,
+            headers={},
+            body={"id": 11, "name": "带描述的项目"},
+            raw_text='...',
+        )
+
+        result_str = self.tools["create_project"](
+            name="带描述的项目",
+            description="这是一个测试项目",
+        )
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.mock_caller.create_project.assert_called_once_with(
+            name="带描述的项目",
+            description="这是一个测试项目",
+        )
+
+    def test_create_project_api_error(self):
+        """create_project API 返回非 200 时正确处理。"""
+        self.mock_caller.create_project.return_value = APIResponse(
+            status_code=400,
+            headers={},
+            body={"message": "项目名称已存在"},
+            raw_text='...',
+        )
+
+        result_str = self.tools["create_project"](name="重名项目")
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["status_code"], 400)
+
+    def test_create_project_exception(self):
+        """create_project 异常时返回错误 JSON。"""
+        self.mock_caller.create_project.side_effect = RuntimeError("创建失败")
+
+        result_str = self.tools["create_project"](name="错误项目")
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("创建失败", result["error"])
+
+
 class MCPAppCreationTest(unittest.TestCase):
     """测试 MCP 应用创建逻辑。"""
 
