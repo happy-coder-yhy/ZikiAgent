@@ -121,6 +121,262 @@ class MCPToolFunctionsTest(unittest.TestCase):
         self.assertTrue(any("连接失败" in w for w in result["_warnings"]))
         self.assertTrue(any("任务标签树接口异常" in w for w in result["_warnings"]))
 
+    def test_get_platform_config_includes_purpose_summary(self):
+        """get_platform_config 返回 _purpose_summary 快捷映射。"""
+        self.mock_caller.list_projects.return_value = APIResponse(
+            status_code=200, headers={},
+            body={"code": 0, "metadata": {"records": [{"id": 1, "name": "测试项目"}]}},
+            raw_text='...',
+        )
+        self.mock_caller.list_tasks.return_value = APIResponse(
+            status_code=200, headers={},
+            body={"code": 0, "metadata": {"records": []}},
+            raw_text='...',
+        )
+        self.mock_caller.list_scene_labels.return_value = APIResponse(
+            status_code=200, headers={},
+            body={"code": 0, "metadata": [{"id": 10, "name": "超市", "children": []}]},
+            raw_text='...',
+        )
+        self.mock_caller.list_device_types.return_value = APIResponse(
+            status_code=200, headers={},
+            body={"code": 0, "metadata": {"records": []}},
+            raw_text='...',
+        )
+        self.mock_caller.get_label_tree.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": [
+                    {
+                        "id": 139, "code": "task_stage", "name": "任务用途",
+                        "children": [
+                            {"id": 206, "name": "正式采集"},
+                            {"id": 209, "name": "仿真评测"},
+                        ],
+                    },
+                ],
+            },
+            raw_text='...',
+        )
+
+        result_str = self.tools["get_platform_config"]()
+        result = json.loads(result_str)
+
+        self.assertIn("_purpose_summary", result)
+        self.assertEqual(result["_purpose_summary"]["仿真评测"], 209)
+        self.assertEqual(result["_purpose_summary"]["正式采集"], 206)
+
+    def test_get_task_purpose_success(self):
+        """get_task_purpose 成功查到用途 ID。"""
+        self.mock_caller.get_label_tree.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": [
+                    {
+                        "id": 139, "code": "task_stage", "name": "任务用途",
+                        "children": [
+                            {"id": 206, "name": "正式采集"},
+                            {"id": 207, "name": "开发测试"},
+                            {"id": 209, "name": "仿真评测"},
+                        ],
+                    },
+                    {
+                        "id": 145, "code": "task_type", "name": "任务类型",
+                        "children": [{"id": 304, "name": "长程"}, {"id": 305, "name": "短程"}],
+                    },
+                ],
+            },
+            raw_text='...',
+        )
+
+        result_str = self.tools["get_task_purpose"](name="仿真评测")
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["name"], "仿真评测")
+        self.assertEqual(result["id"], 209)
+        self.assertIn("summary", result)
+
+    def test_get_task_purpose_not_found(self):
+        """get_task_purpose 找不到时返回错误。"""
+        self.mock_caller.get_label_tree.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": [
+                    {
+                        "id": 139, "code": "task_stage", "name": "任务用途",
+                        "children": [{"id": 206, "name": "正式采集"}],
+                    },
+                ],
+            },
+            raw_text='...',
+        )
+
+        result_str = self.tools["get_task_purpose"](name="不存在的用途")
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("不存在的用途", result["error"])
+        self.assertIn("available_purposes", result)
+
+    def test_get_task_purpose_http_error(self):
+        """get_task_purpose API 异常时正确处理。"""
+        self.mock_caller.get_label_tree.return_value = APIResponse(
+            status_code=500, headers={},
+            body={"message": "服务器错误"},
+            raw_text='...',
+        )
+
+        result_str = self.tools["get_task_purpose"](name="仿真评测")
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("500", result["error"])
+
+    def test_get_task_purpose_exception(self):
+        """get_task_purpose 异常时返回错误 JSON。"""
+        self.mock_caller.get_label_tree.side_effect = RuntimeError("标签树接口超时")
+
+        result_str = self.tools["get_task_purpose"](name="仿真评测")
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("标签树接口超时", result["error"])
+
+    # ------------------------------------------------------------------
+    # 测试: get_scene
+    # ------------------------------------------------------------------
+
+    def _mock_scene_labels(self, tree: list):
+        """Helper: mock caller.list_scene_labels to return given tree."""
+        self.mock_caller.list_scene_labels.return_value = APIResponse(
+            status_code=200, headers={},
+            body={"code": 0, "metadata": tree},
+            raw_text="...",
+        )
+
+    def test_get_scene_main_scene_found(self):
+        """get_scene 查询主场景名称返回 ID。"""
+        self._mock_scene_labels([
+            {"id": 180, "name": "居家", "children": [
+                {"id": 181, "name": "客厅", "children": []},
+                {"id": 182, "name": "整理", "children": []},
+            ]},
+            {"id": 190, "name": "工厂", "children": [
+                {"id": 191, "name": "车间", "children": []},
+            ]},
+        ])
+
+        result_str = self.tools["get_scene"](name="居家")
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["name"], "居家")
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(result["matches"][0]["id"], 180)
+        self.assertIsNone(result["matches"][0]["parentId"])
+        self.assertIn("main_scenes", result)
+        self.assertEqual(result["main_scenes"]["居家"], 180)
+        self.assertEqual(result["main_scenes"]["工厂"], 190)
+
+    def test_get_scene_sub_scene_found(self):
+        """get_scene 查询子场景名称返回 ID 及父场景信息。"""
+        self._mock_scene_labels([
+            {"id": 180, "name": "居家", "children": [
+                {"id": 181, "name": "客厅", "children": []},
+                {"id": 182, "name": "整理", "children": []},
+            ]},
+        ])
+
+        result_str = self.tools["get_scene"](name="客厅")
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["name"], "客厅")
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(result["matches"][0]["id"], 181)
+        self.assertEqual(result["matches"][0]["parentId"], 180)
+        self.assertEqual(result["matches"][0]["parentName"], "居家")
+
+    def test_get_scene_ambiguous(self):
+        """get_scene 同名子场景在不同主场景下全部列出。"""
+        self._mock_scene_labels([
+            {"id": 180, "name": "居家", "children": [
+                {"id": 182, "name": "整理", "children": []},
+            ]},
+            {"id": 190, "name": "工厂", "children": [
+                {"id": 192, "name": "整理", "children": []},
+            ]},
+        ])
+
+        result_str = self.tools["get_scene"](name="整理")
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["count"], 2)
+        self.assertTrue(result["ambiguous"])
+        self.assertEqual(result["matches"][0]["id"], 182)
+        self.assertEqual(result["matches"][0]["parentName"], "居家")
+        self.assertEqual(result["matches"][1]["id"], 192)
+        self.assertEqual(result["matches"][1]["parentName"], "工厂")
+
+    def test_get_scene_not_found(self):
+        """get_scene 找不到时返回错误及可用场景列表。"""
+        self._mock_scene_labels([
+            {"id": 180, "name": "居家", "children": []},
+            {"id": 190, "name": "工厂", "children": []},
+        ])
+
+        result_str = self.tools["get_scene"](name="不存在的场景")
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("不存在的场景", result["error"])
+        self.assertIn("main_scenes", result)
+        self.assertEqual(result["main_scenes"]["居家"], 180)
+
+    def test_get_scene_similar_suggestion(self):
+        """get_scene 找不到时提供模糊匹配建议。"""
+        self._mock_scene_labels([
+            {"id": 180, "name": "居家生活", "children": []},
+            {"id": 181, "name": "居家办公", "children": []},
+        ])
+
+        result_str = self.tools["get_scene"](name="居家")
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("similar", result)
+        self.assertIn("居家生活", result["similar"])
+        self.assertIn("居家办公", result["similar"])
+
+    def test_get_scene_http_error(self):
+        """get_scene API 返回非 200 时正确处理。"""
+        self.mock_caller.list_scene_labels.return_value = APIResponse(
+            status_code=500, headers={},
+            body={"message": "服务器错误"},
+            raw_text="...",
+        )
+
+        result_str = self.tools["get_scene"](name="居家")
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("500", result["error"])
+
+    def test_get_scene_exception(self):
+        """get_scene 异常时返回错误 JSON。"""
+        self.mock_caller.list_scene_labels.side_effect = RuntimeError("场景标签接口超时")
+
+        result_str = self.tools["get_scene"](name="居家")
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("场景标签接口超时", result["error"])
+
     def test_create_scene_task_success(self):
         """create_scene_task 成功创建任务。"""
         self.mock_caller.create_scene_task.return_value = APIResponse(
@@ -443,6 +699,346 @@ class MCPToolFunctionsTest(unittest.TestCase):
 
         self.assertFalse(result["success"])
         self.assertIn("创建失败", result["error"])
+
+    # ------------------------------------------------------------------
+    # 测试: get_scene_task
+    # ------------------------------------------------------------------
+
+    def _mock_list_tasks(self, tasks: list[dict], code: int = 0):
+        """Helper: mock caller.list_tasks to return given tasks."""
+        self.mock_caller.list_tasks.return_value = APIResponse(
+            status_code=200,
+            headers={},
+            body={"code": code, "metadata": {"records": tasks}},
+            raw_text="...",
+        )
+
+    def _mock_get_task_detail(self, task: dict, status_code: int = 200):
+        """Helper: mock caller.get_task to return a detailed task."""
+        self.mock_caller.get_task.return_value = APIResponse(
+            status_code=status_code,
+            headers={},
+            body={"code": 0, "metadata": task},
+            raw_text="...",
+        )
+
+    def test_get_scene_task_found_exact(self):
+        """get_scene_task 找到一条任务并返回完整详情。"""
+        self._mock_list_tasks([
+            {"id": 42, "title": "商超收银场景采集", "projectId": 1, "status": 0},
+        ])
+        self._mock_get_task_detail({
+            "id": 42, "title": "商超收银场景采集", "projectId": 1, "sceneId": 5,
+            "taskType": 305, "difficulty": 1, "status": 0, "description": "测试描述",
+            "deviceTypeId": 200, "collectMethod": "web_video", "taskPurposeId": 100,
+        })
+
+        result_str = self.tools["get_scene_task"](title="商超收银")
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["found"])
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(result["task"]["id"], 42)
+        self.assertEqual(result["task"]["title"], "商超收银场景采集")
+        self.mock_caller.list_tasks.assert_called_once_with(
+            title="商超收银", projectId=None, pageNum=1, pageSize=20
+        )
+        self.mock_caller.get_task.assert_called_once_with(taskId=42)
+
+    def test_get_scene_task_multiple_found(self):
+        """get_scene_task 找到多条任务时返回列表。"""
+        self._mock_list_tasks([
+            {"id": 1, "title": "超市A采集", "projectId": 1, "status": 0},
+            {"id": 2, "title": "超市B采集", "projectId": 1, "status": 0},
+        ])
+
+        result_str = self.tools["get_scene_task"](title="超市")
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["found"])
+        self.assertEqual(result["count"], 2)
+        self.assertEqual(len(result["tasks"]), 2)
+        self.assertIn("请用户指定具体任务 ID", result["message"])
+        # 多条时不调 get_task
+        self.mock_caller.get_task.assert_not_called()
+
+    def test_get_scene_task_not_found(self):
+        """get_scene_task 没有匹配任务时返回 found: false。"""
+        self._mock_list_tasks([])
+
+        result_str = self.tools["get_scene_task"](title="不存在的任务")
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertFalse(result["found"])
+        self.assertEqual(result["tasks"], [])
+        self.assertIn("不存在的任务", result["message"])
+
+    def test_get_scene_task_with_project_id(self):
+        """get_scene_task 传入 project_id 缩小搜索范围。"""
+        self._mock_list_tasks([
+            {"id": 10, "title": "仓库盘点", "projectId": 3, "status": 0},
+        ])
+        self._mock_get_task_detail({
+            "id": 10, "title": "仓库盘点", "projectId": 3, "sceneId": 8,
+            "taskType": 304, "difficulty": 2, "status": 0,
+        })
+
+        result_str = self.tools["get_scene_task"](title="仓库盘点", project_id=3)
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["found"])
+        self.mock_caller.list_tasks.assert_called_once_with(
+            title="仓库盘点", projectId=3, pageNum=1, pageSize=20
+        )
+
+    def test_get_scene_task_http_error(self):
+        """get_scene_task API 返回非 200 时正确处理。"""
+        self.mock_caller.list_tasks.return_value = APIResponse(
+            status_code=500,
+            headers={},
+            body={"message": "服务器错误"},
+            raw_text="...",
+        )
+
+        result_str = self.tools["get_scene_task"](title="测试")
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("500", result["error"])
+
+    def test_get_scene_task_exception(self):
+        """get_scene_task 异常时返回错误 JSON。"""
+        self.mock_caller.list_tasks.side_effect = RuntimeError("网络超时")
+
+        result_str = self.tools["get_scene_task"](title="测试")
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("网络超时", result["error"])
+
+    def test_get_scene_task_exact_detail_fallback(self):
+        """get_scene_task 获取详情失败时回退到列表数据。"""
+        self._mock_list_tasks([
+            {"id": 42, "title": "商超收银", "projectId": 1, "status": 0},
+        ])
+        # get_task 失败
+        self.mock_caller.get_task.side_effect = RuntimeError("连接断开")
+
+        result_str = self.tools["get_scene_task"](title="商超收银")
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["found"])
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(result["task"]["id"], 42)
+
+    # ------------------------------------------------------------------
+    # 测试: update_scene_task
+    # ------------------------------------------------------------------
+
+    def _mock_get_task(self, task_id: int, status: int = 0, **overrides):
+        """Helper: mock caller.get_task to return a task with given overrides."""
+        default_task = {
+            "id": task_id,
+            "projectId": 1,
+            "sceneId": 5,
+            "title": "原任务标题",
+            "description": "原描述",
+            "taskType": 305,  # 短程
+            "difficulty": 1,  # 简单
+            "deviceTypeId": 200,
+            "collectMethod": "web_video",
+            "taskPurposeId": 100,
+            "collectModeId": None,
+            "collectSchemeId": None,
+            "spaceIds": None,
+            "customLabelIds": None,
+            "recognitionEnabled": None,
+            "videoQuality": None,
+            "status": status,
+        }
+        default_task.update(overrides)
+        self.mock_caller.get_task.return_value = APIResponse(
+            status_code=200,
+            headers={},
+            body={"code": 0, "metadata": default_task},
+            raw_text="...",
+        )
+
+    def test_update_scene_task_success(self):
+        """update_scene_task 成功修改单个字段。"""
+        self._mock_get_task(task_id=42, status=0)
+        self.mock_caller._request_data_manager.return_value = APIResponse(
+            status_code=200,
+            headers={},
+            body={"id": 42, "title": "新标题"},
+            raw_text="...",
+        )
+
+        result_str = self.tools["update_scene_task"](task_id=42, title="新标题")
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["data"]["title"], "新标题")
+        self.assertEqual(result["updated_fields"], ["title"])
+        # 验证 _request_data_manager 被调用时带上了 taskCategory 和正确的字段
+        call_body = self.mock_caller._request_data_manager.call_args.kwargs["json_body"]
+        self.assertEqual(call_body["taskId"], 42)
+        self.assertEqual(call_body["title"], "新标题")
+        self.assertEqual(call_body["sceneId"], 5)
+        self.assertEqual(call_body["taskCategory"], "scene")
+
+    def test_update_scene_task_multiple_fields(self):
+        """update_scene_task 同时修改多个字段。"""
+        self._mock_get_task(task_id=42, status=0)
+        self.mock_caller._request_data_manager.return_value = APIResponse(
+            status_code=200,
+            headers={},
+            body={"id": 42, "title": "新标题", "description": "新描述"},
+            raw_text="...",
+        )
+
+        result_str = self.tools["update_scene_task"](
+            task_id=42,
+            title="新标题",
+            description="新描述",
+            difficulty="困难",
+            task_type="长程",
+        )
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertIn("title", result["updated_fields"])
+        self.assertIn("description", result["updated_fields"])
+        call_body = self.mock_caller._request_data_manager.call_args.kwargs["json_body"]
+        self.assertEqual(call_body["title"], "新标题")
+        self.assertEqual(call_body["description"], "新描述")
+        self.assertEqual(call_body["difficulty"], 3)  # 困难 → 3
+        self.assertEqual(call_body["taskType"], 304)  # 长程 → 304
+        self.assertEqual(call_body["taskCategory"], "scene")
+
+    def test_update_scene_task_no_fields(self):
+        """update_scene_task 未指定修改字段时返回错误。"""
+        self._mock_get_task(task_id=42, status=0)
+
+        result_str = self.tools["update_scene_task"](task_id=42)
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("请指定要修改的字段", result["error"])
+
+    def test_update_scene_task_invalid_task_type(self):
+        """update_scene_task 无效 task_type 时返回错误。"""
+        self._mock_get_task(task_id=42, status=0)
+
+        result_str = self.tools["update_scene_task"](
+            task_id=42, title="新标题", task_type="超长程"
+        )
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("短程", result["error"])
+        self.assertIn("长程", result["error"])
+
+    def test_update_scene_task_invalid_difficulty(self):
+        """update_scene_task 无效 difficulty 时返回错误。"""
+        self._mock_get_task(task_id=42, status=0)
+
+        result_str = self.tools["update_scene_task"](
+            task_id=42, title="新标题", difficulty="中等"
+        )
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("简单", result["error"])
+        self.assertIn("普通", result["error"])
+        self.assertIn("困难", result["error"])
+
+    def test_update_scene_task_published(self):
+        """update_scene_task 已发布任务由 API 拒绝，工具如实返回错误。"""
+        self._mock_get_task(task_id=42, status=1)  # 模拟已发布任务
+        # 模拟 API 返回错误——已发布任务不可修改
+        self.mock_caller._request_data_manager.return_value = APIResponse(
+            status_code=400,
+            headers={},
+            body={"message": "任务已发布，无法修改"},
+            raw_text="...",
+        )
+
+        result_str = self.tools["update_scene_task"](task_id=42, title="新标题")
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["status_code"], 400)
+
+    def test_update_scene_task_not_found(self):
+        """update_scene_task 任务不存在时返回错误。"""
+        self.mock_caller.get_task.return_value = APIResponse(
+            status_code=404,
+            headers={},
+            body={"message": "任务不存在"},
+            raw_text="...",
+        )
+
+        result_str = self.tools["update_scene_task"](task_id=999, title="新标题")
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("404", result["error"])
+
+    def test_update_scene_task_http200_with_error_code(self):
+        """update_scene_task API 返回 200 但 body 中带错误码时视为失败。"""
+        self._mock_get_task(task_id=42, status=0)
+        # API 返回 200 但 body 包含错误码——实际修改未生效
+        self.mock_caller._request_data_manager.return_value = APIResponse(
+            status_code=200,
+            headers={},
+            body={"code": 16842753, "message": "taskCategory不能为空", "metadata": None},
+            raw_text="...",
+        )
+
+        result_str = self.tools["update_scene_task"](task_id=42, title="新标题")
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("taskCategory", result.get("error", ""))
+        self.assertNotIn("updated_fields", result)
+
+    def test_update_scene_task_exception(self):
+        """update_scene_task 异常时返回错误 JSON。"""
+        self._mock_get_task(task_id=42, status=0)
+        self.mock_caller._request_data_manager.side_effect = RuntimeError("更新失败")
+
+        result_str = self.tools["update_scene_task"](task_id=42, title="新标题")
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("更新失败", result["error"])
+
+    def test_update_scene_task_change_project(self):
+        """update_scene_task 支持修改项目归属。"""
+        self._mock_get_task(task_id=42, status=0, projectId=1)  # 原项目 ID=1
+        self.mock_caller._request_data_manager.return_value = APIResponse(
+            status_code=200,
+            headers={},
+            body={"id": 42, "projectId": 5, "title": "原任务标题"},
+            raw_text="...",
+        )
+
+        result_str = self.tools["update_scene_task"](
+            task_id=42, project_id=5
+        )
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertIn("project_id", result["updated_fields"])
+        call_body = self.mock_caller._request_data_manager.call_args.kwargs["json_body"]
+        self.assertEqual(call_body["projectId"], 5)
+        self.assertEqual(call_body["taskCategory"], "scene")
 
 
 class MCPAppCreationTest(unittest.TestCase):
