@@ -1,11 +1,12 @@
 ---
 name: scene-task
 description: >
-  Creates, queries, and updates scene collection tasks (场景采集任务) on the Zata
-  platform via MCP tools. Use `create_scene_task` to create, `get_scene_task` to
-  query by name, `update_scene_task` to modify (only unpublished tasks). Always
-  query platform config first via `get_platform_config`.
-tags: [zata, ziki, scene-task, collection, task-creation, task-update]
+  Creates, queries, updates, and publishes scene collection tasks (场景采集任务) on
+  the Zata platform via MCP tools. Use `create_scene_task` to create,
+  `get_scene_task` to query by name, `update_scene_task` to modify (only
+  unpublished tasks), `publish_scene_task` to publish. Always query platform
+  config first via `get_platform_config`.
+tags: [zata, ziki, scene-task, collection, task-creation, task-update, task-publish]
 triggers:
   - user says "创建场景采集任务" / "create a scene task"
   - user says "创建采集任务" / "create a collection task"
@@ -15,19 +16,22 @@ triggers:
   - user mentions modifying/changing a collection task's fields
   - user wants to add a collection task under a project
   - user mentions a scene and project together for task creation
+  - user says "发布场景任务" / "publish a scene task"
+  - user wants to release or publish a collection task
 ---
 
 # Scene Task / 场景采集任务
 
 ## 用途
 
-在 Zata 平台上**创建**和**修改**场景采集任务。
+在 Zata 平台上**创建**、**修改**和**发布**场景采集任务。
 
 | 操作 | MCP 工具 | 说明 |
 |------|----------|------|
 | **创建** | `create_scene_task` | 在指定项目下创建新的场景采集任务 |
 | **查询** | `get_scene_task` | 根据任务名称查询任务，返回完整 JSON 信息 |
 | **修改** | `update_scene_task` | 修改任务字段值。**仅限未发布（status=1）的任务**，已发布（status=2）的任务会被 API 拒绝 |
+| **发布** | `publish_scene_task` | 将任务发布上线（status → 2），发布后采集员可领取 |
 | **查场景 ID** | `get_scene` | 快速查询场景 ID，1 次 API 调用，支持主场景/子场景 |
 
 ---
@@ -173,7 +177,37 @@ Optional Params（至少传一个）:
 
 ---
 
-## 三、通用注意
+## 三、发布场景采集任务
+
+### 调用方式
+
+```
+Tool: publish_scene_task
+Required Params:
+  - task_id: int          — 任务 ID（必填）
+```
+
+### 发布工作流
+
+1. 用户提出发布意图（如"帮我发布XX任务"）
+2. 调用 `get_scene_task(title="<任务名>")` 查询任务，获取 `task.id` 和当前状态
+3. **检查任务状态**：
+   - `status=1`（未发布）→ 可以发布
+   - `status=2`（已发布）→ 提示用户"该任务已是发布状态，无需重复发布"
+   - 其他已归档/删除状态 → 告知用户当前状态，无法发布
+4. 调用 `publish_scene_task(task_id=...)` 发布任务
+5. 检查返回结果：`success: true` 表示发布成功，`data` 中任务 `status` 变为 `2`
+
+### 限制条件
+
+- **仅限未发布（status=1）的任务** — 已发布（status=2）的任务再次发布会被 API 拒绝
+- 发布后任务将可以被采集员领取执行
+- 发布前建议先确认任务的所有必填字段已填写完整（标题、场景、设备类型、采集员等）
+- 如果发布后需要修改，必须先取消发布（目前暂未封装 unpublish 工具，后续可扩展）
+
+---
+
+## 四、通用注意
 
 - **所有 ID 必须从 `get_platform_config` 获取**，不要硬编码或猜测
 - task_type 只接受 "短程" 或 "长程"，其他值会报错

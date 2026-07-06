@@ -524,3 +524,37 @@ def register_tools(mcp, caller) -> None:
                 ensure_ascii=False,
                 indent=2,
             )
+
+    # -------------------------------------------------------------------
+    # 工具: publish_scene_task
+    # -------------------------------------------------------------------
+
+    @mcp.tool()
+    def publish_scene_task(task_id: int) -> str:
+        """发布场景采集任务。
+
+        将指定场景任务的状态改为已发布（status=2）。
+        仅限未发布状态的任务，已发布的任务再次发布会被 API 拒绝。
+
+        Args:
+            task_id: 任务 ID（必填）
+        """
+        try:
+            response = caller.publish_task(taskId=task_id)
+
+            return json.dumps(
+                {
+                    "success": response.status_code == 200,
+                    "status_code": response.status_code,
+                    "data": response.body,
+                    "message": "任务已发布" if response.status_code == 200 else "发布失败",
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        except Exception as e:
+            return json.dumps(
+                {"success": False, "error": f"发布任务异常: {e}"},
+                ensure_ascii=False,
+                indent=2,
+            )
