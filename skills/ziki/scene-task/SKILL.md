@@ -75,6 +75,7 @@ Optional Params:
   - custom_label_ids: int[]       — 自定义标签 ID 列表
   - recognition_enabled: bool     — 是否启用 AI 识别
   - video_quality: int            — 视频画质
+  - remark: string                — 任务备注
 ```
 
 ### 创建工作流
@@ -118,6 +119,7 @@ Optional Params（至少传一个）:
   - custom_label_ids: int[] — 新的自定义标签 ID 列表
   - recognition_enabled: bool — 是否启用 AI 识别
   - video_quality: int      — 新的视频画质
+  - remark: string          — 新的任务备注
 ```
 
 ### 查询工作流
@@ -135,7 +137,7 @@ Optional Params（至少传一个）:
 3. 确定 `task_id`：
    - **首选**：调用 `get_scene_task(title="<任务名>")` 查询任务，获取 `task.id` 和当前状态
    - **备选**：用 `session_search(query="<任务名>")` 从历史会话中查找任务 ID
-4. 如果修改涉及 scene_id，优先用 `get_scene(name="...")` 查询（1 次 API 调用）；涉及 device_type_id 等其他 ID 字段则调用 `get_platform_config`
+4. 如果修改涉及 scene_id，优先用 `get_scene(name="...")`，涉及 task_purpose_id，优先用 `get_task_purpose(name="...")` 查询（1 次 API 调用）；涉及 device_type_id 等其他 ID 字段则调用 `get_platform_config`
 5. 调用 `update_scene_task` 传入 task_id 和需要修改的字段
 6. 检查返回结果：`success: true` + `updated_fields` 列出实际变更的字段
 

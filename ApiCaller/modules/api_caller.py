@@ -688,6 +688,7 @@ class ZataAPICaller(APICaller):
         difficulty: Optional[int] = None,
         planCollectCount: Optional[int] = None,
         recognitionEnabled: Optional[bool] = None,
+        remark: Optional[str] = None,
         spaceIds: Optional[Sequence[int]] = None,
         taskPurposeId: Optional[int] = None,
         taskType: Optional[int] = None,
@@ -699,6 +700,7 @@ class ZataAPICaller(APICaller):
             sceneId (int): 场景标签 ID。
             title (str): 任务标题。
             projectId (int): 项目 ID。
+            remark (Optional[str]): 任务备注。
 
         返回:
             APIResponse: 创建场景采集任务接口响应结果。
@@ -716,6 +718,7 @@ class ZataAPICaller(APICaller):
             planCollectCount=planCollectCount,
             projectId=projectId,
             recognitionEnabled=recognitionEnabled,
+            remark=remark,
             sceneId=sceneId,
             spaceIds=spaceIds,
             taskCategory="scene",

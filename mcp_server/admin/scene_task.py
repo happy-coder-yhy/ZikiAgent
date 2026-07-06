@@ -81,6 +81,7 @@ def register_tools(mcp, caller) -> None:
         custom_label_ids: Optional[list[int]] = None,
         recognition_enabled: Optional[bool] = None,
         video_quality: Optional[int] = None,
+        remark: Optional[str] = None,
     ) -> str:
         """创建场景采集任务。
 
@@ -110,6 +111,7 @@ def register_tools(mcp, caller) -> None:
             custom_label_ids: 自定义标签 ID 列表（可选）
             recognition_enabled: 是否启用 AI 识别（可选）
             video_quality: 视频画质设置（可选）
+            remark: 任务备注（可选）
         """
         # 校验并映射 task_type
         task_type_val = _TASK_TYPE_MAP.get(task_type)
@@ -152,6 +154,7 @@ def register_tools(mcp, caller) -> None:
                 customLabelIds=custom_label_ids,
                 recognitionEnabled=recognition_enabled,
                 videoQuality=video_quality,
+                remark=remark,
             )
 
             return json.dumps(
@@ -302,6 +305,7 @@ def register_tools(mcp, caller) -> None:
         custom_label_ids: Optional[list[int]] = None,
         recognition_enabled: Optional[bool] = None,
         video_quality: Optional[int] = None,
+        remark: Optional[str] = None,
     ) -> str:
         """修改场景任务。
 
@@ -326,6 +330,7 @@ def register_tools(mcp, caller) -> None:
             custom_label_ids: 新的自定义标签 ID 列表（选填）
             recognition_enabled: 是否启用 AI 识别（选填）
             video_quality: 新的视频画质设置（选填）
+            remark: 新的任务备注（选填）
         """
         # 检查是否至少传了一个要修改的字段
         update_fields = {
@@ -345,6 +350,7 @@ def register_tools(mcp, caller) -> None:
                 "custom_label_ids": custom_label_ids,
                 "recognition_enabled": recognition_enabled,
                 "video_quality": video_quality,
+                "remark": remark,
             }.items() if v is not None
         }
         if not update_fields:
@@ -444,6 +450,7 @@ def register_tools(mcp, caller) -> None:
         cur_custom_label_ids = current.get("customLabelIds")
         cur_recognition = current.get("recognitionEnabled")
         cur_video_quality = current.get("videoQuality")
+        cur_remark = current.get("remark")
 
         # 当前 difficulty 可能是 int 或 str，统一处理
         cur_difficulty_raw = current.get("difficulty")
@@ -487,6 +494,7 @@ def register_tools(mcp, caller) -> None:
                     customLabelIds=custom_label_ids if custom_label_ids is not None else cur_custom_label_ids,
                     recognitionEnabled=recognition_enabled if recognition_enabled is not None else cur_recognition,
                     videoQuality=video_quality if video_quality is not None else cur_video_quality,
+                    remark=remark if remark is not None else cur_remark,
                 ),
             )
 
