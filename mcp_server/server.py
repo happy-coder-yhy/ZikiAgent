@@ -102,31 +102,7 @@ def create_app(caller: Optional[ZataAPICaller] = None) -> "FastMCP":
     if caller is None:
         caller = _build_caller()
 
-    mcp = FastMCP(
-        "ziki-platform",
-        instructions=(
-            "Ziki 数据采集平台工具。请严格按照以下流程操作：\n\n"
-            "【项目管理】\n"
-            "- 当用户询问有哪些项目时，调用 get_projects 查询项目列表。\n"
-            "- 当用户要求创建新项目时：\n"
-            "  1. 项目名称（name）为必填字段，用户未提供时必须先向用户询问。\n"
-            "  2. 项目描述（description）为选填字段，用户未提供时也先询问一下，"
-            "若用户明确表示不需要描述则跳过。\n"
-            "  3. 询问完必填和选填信息后，调用 create_project 创建项目。\n\n"
-            "【场景采集任务】\n"
-            "1. 创建任务前，先调用 get_platform_config 获取可用的项目、场景、设备类型等参考信息。\n"
-            "2. 调用 create_scene_task 创建场景采集任务，该工具有以下必填字段：\n"
-            "   - project_id / scene_id / title（基本字段）\n"
-            "   - task_type（任务类型：短程 / 长程，通过 get_platform_config 返回的 task_type_options 查看可用的类型及其ID）\n"
-            "   - task_purpose_id（任务用途ID：通过 get_platform_config 返回的 task_purposes 列表查看用途名称及对应ID）\n"
-            "   - difficulty（难度：简单 / 普通 / 困难）\n"
-            "   - device_type_id（设备类型ID：通过 get_platform_config 返回的 device_types 列表查看）\n"
-            "3. 重要：当用户指令缺少上述必填字段的值时，你必须主动逐一向用户询问缺失的字段值，"
-            "直至所有必填字段信息完整，再调用 create_scene_task 创建任务。\n"
-            "   例如用户只说\"创建场景任务\"而不提供任何细节，你需要逐一询问：项目、场景、"
-            "任务标题、任务类型（短程/长程）、任务用途、难度、设备类型。\n"
-        ),
-    )
+    mcp = FastMCP("ziki-platform")
 
     # -------------------------------------------------------------------
     # 注册各模块工具
@@ -134,10 +110,12 @@ def create_app(caller: Optional[ZataAPICaller] = None) -> "FastMCP":
     from mcp_server.admin.platform_config import register_tools as register_platform_config
     from mcp_server.admin.scene_task import register_tools as register_scene_task
     from mcp_server.admin.project import register_tools as register_project
+    from mcp_server.admin.task_work import register_tools as register_task_work
 
     register_platform_config(mcp, caller)
     register_scene_task(mcp, caller)
     register_project(mcp, caller)
+    register_task_work(mcp, caller)
 
     return mcp
 
