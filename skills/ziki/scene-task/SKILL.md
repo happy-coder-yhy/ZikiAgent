@@ -30,7 +30,7 @@ triggers:
 |------|----------|------|
 | **创建** | `create_scene_task` | 在指定项目下创建新的场景采集任务 |
 | **查询** | `get_scene_task` | 根据任务名称查询任务，返回完整 JSON 信息 |
-| **修改** | `update_scene_task` | 修改任务字段值。**仅限未发布（status=1）的任务**，已发布（status=2）的任务会被 API 拒绝 |
+| **修改** | `update_scene_task` | 修改任务字段值。**仅限未发布（status=1）的任务** — 已发布（status=2）的任务**只能修改 title、description、remark**，若修改其他字段则直接拒绝，不要尝试修改 |
 | **发布** | `publish_scene_task` | 将任务发布上线（status → 2），发布后采集员可领取 |
 | **查场景 ID** | `get_scene` | 快速查询场景 ID，1 次 API 调用，支持主场景/子场景 |
 
@@ -141,14 +141,17 @@ Optional Params（至少传一个）:
 3. 确定 `task_id`：
    - **首选**：调用 `get_scene_task(title="<任务名>")` 查询任务，获取 `task.id` 和当前状态
    - **备选**：用 `session_search(query="<任务名>")` 从历史会话中查找任务 ID
-4. 如果修改涉及 scene_id，优先用 `get_scene(name="...")`，涉及 task_purpose_id，优先用 `get_task_purpose(name="...")` 查询（1 次 API 调用）；涉及 device_type_id 等其他 ID 字段则调用 `get_platform_config`
-5. 调用 `update_scene_task` 传入 task_id 和需要修改的字段
-6. 检查返回结果：`success: true` + `updated_fields` 列出实际变更的字段
+4. **检查任务状态**：如果 `task.status == 2`（已发布）：
+   - 用户**只修改 title / description / remark** → 允许，继续执行
+   - 用户修改 **title、description、remark 以外的字段** → **直接拒绝**，告诉用户"该任务已发布，无法修改，请先取消发布"，**不要调用 `update_scene_task`或任何工具以及api**
+5. 如果修改涉及 scene_id，优先用 `get_scene(name="...")`，涉及 task_purpose_id，优先用 `get_task_purpose(name="...")` 查询（1 次 API 调用）；涉及 device_type_id 等其他 ID 字段则调用 `get_platform_config`
+6. 调用 `update_scene_task` 传入 task_id 和需要修改的字段
+7. 检查返回结果：`success: true` + `updated_fields` 列出实际变更的字段
 
 ### 限制条件与已知行为
 
-- **仅限未发布（status=1）的任务** — 已发布任务（status=2）会被 API 拒绝修改
-- 修改前先调 `get_scene_task` 查看任务状态
+- **仅限未发布（status=1）的任务** — 已发布任务（status=2）**只能修改 title、description、remark**，修改其他字段则直接拒绝，不要尝试修改或调用mcp tool
+- 修改前先调 `get_scene_task` 查看任务状态，确认 `status=1`
 - **至少指定一个要修改的字段**，不能空调用
 - task_type 只接受 "短程" 或 "长程"
 - difficulty 只接受 "简单"、"普通" 或 "困难"
@@ -203,7 +206,7 @@ Required Params:
 - **仅限未发布（status=1）的任务** — 已发布（status=2）的任务再次发布会被 API 拒绝
 - 发布后任务将可以被采集员领取执行
 - 发布前建议先确认任务的所有必填字段已填写完整（标题、场景、设备类型、采集员等）
-- 如果发布后需要修改，必须先取消发布（目前暂未封装 unpublish 工具，后续可扩展）
+- **发布后如需修改，只能修改 title、description、remark**。修改其他字段则直接拒绝，不要调用 `update_scene_task` 或任何其他工具。
 
 ---
 
