@@ -167,6 +167,95 @@ def register_tools(mcp, caller) -> None:
                 indent=2,
             )
 
+    @mcp.tool()
+    def job_summary(
+        page_num: int = 1,
+        page_size: int = 200,
+    ) -> str:
+        """查询平台作业概览——返回作业总数及分类（场景/指令/严格）统计，以及每个有作业的任务的作业数。
+
+        Args:
+            page_num: 页码，默认 1
+            page_size: 每页数量，默认 200
+
+        Returns:
+            JSON 字符串，包含:
+            - success: 是否成功
+            - total_jobs: 平台作业总数（所有任务的 jobCount 之和）
+            - scene_jobs: 场景任务作业数
+            - instruction_jobs: 指令任务作业数
+            - strict_jobs: 严格任务作业数
+            - task_count: 有作业的任务数（jobCount > 0）
+            - task_jobs: 有作业的任务列表，按 jobCount 降序排列（id, title, taskCategory, jobCount）
+        """
+
+        try:
+            resp = caller.list_tasks(
+                pageNum=page_num,
+                pageSize=page_size,
+            )
+            if resp.status_code != 200:
+                return json.dumps(
+                    {"success": False, "error": f"查询失败: HTTP {resp.status_code}"},
+                    ensure_ascii=False,
+                    indent=2,
+                )
+
+            tasks = _extract_metadata_items(resp.body)
+
+            total_jobs = 0
+            scene_jobs = 0
+            instruction_jobs = 0
+            strict_jobs = 0
+            task_jobs = []
+
+            for t in tasks:
+                if not isinstance(t, dict):
+                    continue
+                job_count = t.get("jobCount", 0) or 0
+                category = t.get("taskCategory", "")
+                total_jobs += job_count
+
+                if category == _TASK_CATEGORY_SCENE:
+                    scene_jobs += job_count
+                elif category == _TASK_CATEGORY_INSTRUCTION:
+                    instruction_jobs += job_count
+                elif category == _TASK_CATEGORY_STRICT:
+                    strict_jobs += job_count
+
+                if job_count > 0:
+                    task_jobs.append({
+                        "id": t.get("id"),
+                        "title": t.get("title"),
+                        "taskCategory": category,
+                        "jobCount": job_count,
+                    })
+
+            task_jobs.sort(key=lambda x: x["jobCount"], reverse=True)
+
+            return json.dumps(
+                {
+                    "success": True,
+                    "total_jobs": total_jobs,
+                    "scene_jobs": scene_jobs,
+                    "instruction_jobs": instruction_jobs,
+                    "strict_jobs": strict_jobs,
+                    "task_count": len(task_jobs),
+                    "task_jobs": task_jobs,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+
+        except Exception as e:
+            return json.dumps(
+                {"success": False, "error": f"查询作业概览异常: {e}"},
+                ensure_ascii=False,
+                indent=2,
+            )
+
+    
+
 
       
             

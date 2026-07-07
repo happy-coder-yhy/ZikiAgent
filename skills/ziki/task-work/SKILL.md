@@ -1,10 +1,11 @@
 ---
 name: task-work
 description: >
-  Provides task overview statistics via `task_summary` and single-task detail
-  query via `task_detail` on the Ziki platform. Use `task_summary` when the user
-  asks "how many tasks" or wants a platform-wide overview; use `task_detail`
-  when the user asks about a specific task's full details.
+  Provides task overview statistics via `task_summary`, single-task detail
+  query via `task_detail`, and platform-wide job overview via `job_summary`
+  on the Ziki platform. Use `task_summary` when the user asks "how many tasks"
+  or wants a platform-wide overview; use `task_detail` when the user asks about
+  a specific task's full details; use `job_summary` for platform job overview.
 tags: [zata, ziki, task-work, summary, statistics, detail]
 triggers:
   # 任务概览
@@ -21,18 +22,25 @@ triggers:
   - user wants to see a specific task's full info (fields, published status, jobs)
   - user asks whether a task has assignments / jobs / 作业
   - user asks whether a task is published / 已发布
+  # 作业概览
+  - user asks "平台作业概览" / "platform job overview"
+  - user asks "平台有多少作业" / "how many jobs on the platform"
+  - user says "帮我看看平台的作业情况"
+  - user wants to know job distribution across task categories
+  - user asks "哪些任务有作业" / "which tasks have jobs"
 ---
 
 # Task Work / 任务概览与详情查询
 
 ## 概述
 
-本 skill 覆盖两个任务查询工具：
+本 skill 覆盖三个任务查询工具：
 
 | 工具 | 用途 |
 |------|------|
 | `task_summary` | 平台任务概要统计（总数、分类统计） |
 | `task_detail` | 单个任务的完整详情查询 |
+| `job_summary` | 平台作业概览（总数、分类统计、各任务作业数） |
 
 ---
 
@@ -214,12 +222,77 @@ task_summary(title="整理")
 
 ---
 
-## 通用注意事项
+## 四、平台作业概览（job_summary）
 
-- **所有工具均为只读查询**，不会修改任何数据
-- **`task_detail` 的参数 `task_id` 必须是数字** — 如果只知道任务名称，先用 `task_summary(title=...)` 查到 ID
-- `total` 取自服务器返回的元数据总量，若总量不可用则回退为返回列表长度
-- 分类依据为 `taskCategory` 字段：`"scene"`=场景任务、`"instruction"`=指令任务、`"strict"`=严格任务
-- 已发布状态判定依据 `status == 2`
-- **作业数**（jobCount）反映该任务下已有多少个作业，0 表示暂无作业
-- `task_summary` 默认返回 100 条任务概要，可通过 `page_size` 调整
+### 用途
+
+查询 Ziki 平台上所有任务的**作业（job）概览信息**，包括：
+
+- **作业总数（total_jobs）** — 平台所有任务下作业的总数（各任务 jobCount 之和）
+- **场景任务作业数（scene_jobs）** — 分类为"场景"的任务下的作业总数
+- **指令任务作业数（instruction_jobs）** — 分类为"指令"的任务下的作业总数
+- **严格任务作业数（strict_jobs）** — 分类为"严格"的任务下的作业总数
+- **有作业的任务数（task_count）** — jobCount > 0 的任务数量
+- **各任务作业明细（task_jobs）** — 每个有作业的任务 ID、名称、分类及作业数（按作业数降序排列）
+
+### 调用方式
+
+```
+Tool: job_summary
+Optional Params:
+  page_num: int      — 页码，默认 1
+  page_size: int     — 每页数量，默认 200
+```
+
+### 返回示例
+
+```json
+{
+  "success": true,
+  "total_jobs": 156,
+  "scene_jobs": 89,
+  "instruction_jobs": 42,
+  "strict_jobs": 25,
+  "task_count": 12,
+  "task_jobs": [
+    {"id": 42, "title": "商超收银场景采集", "taskCategory": "scene", "jobCount": 30},
+    {"id": 18, "title": "居家整理采集", "taskCategory": "scene", "jobCount": 25},
+    {"id": 7,  "title": "指令任务A", "taskCategory": "instruction", "jobCount": 18},
+    {"id": 35, "title": "严格质检任务", "taskCategory": "strict", "jobCount": 10}
+  ]
+}
+```
+
+### 工作流
+
+1. 用户提出查看平台作业概览的意图：
+   - "平台现在有多少作业？"
+   - "帮我看看平台的作业情况"
+   - "哪些任务有作业？"
+
+2. 直接调用 `job_summary` 获取统计
+
+3. 向用户汇报作业概览信息（用自然语言风格）：
+
+   **汇报要点：**
+   - 平台作业总数 → 开头点明
+   - 分类统计 → 场景/指令/严格各有多少作业
+   - 有作业的任务 → 提到有几个任务有作业，按数量从多到少列出
+   - 按 `task_jobs` 中的 `jobCount` 降序排列汇报
+
+   **推荐的口语化风格示例：**
+
+   > 当前平台一共有 **156** 个作业，分布在 12 个任务中。
+   >
+   > 按任务分类来看：**场景任务**有 89 个作业，**指令任务**有 42 个，**严格任务**有 25 个。
+   >
+   > 作业量最多的任务是 **商超收银场景采集**（30 个作业），其次是 **居家整理采集**（25 个），**指令任务A** 有 18 个，**严格质检任务**有 10 个。
+
+4. 如果用户想进一步了解某个有作业的任务详情，可结合 `task_detail` 或 `task_summary` 提供更详细的信息。
+
+### 注意事项
+
+- `job_summary` 基于任务列表接口返回的 `jobCount` 字段聚合，**不逐一查询每个作业的明细**
+- 默认返回 200 条任务数据，覆盖绝大部分场景；若平台任务超过 200，可通过调整 `page_size` 扩展
+- 统计口径：每个任务的 `jobCount` 由服务端维护，反映任务当前的作业数量
+- 若需要查看**某个具体任务的作业详情**（如作业数、采集进度等），可结合 `task_detail` 进一步查询
