@@ -110,6 +110,63 @@ def register_tools(mcp, caller) -> None:
                 indent=2,
             )
 
+    @mcp.tool()
+    def task_detail(task_id: int) -> str:
+        """查询单个任务详情（完整字段）。
+
+        Args:
+            task_id: 任务 ID（必须为数字，可通过 task_summary 按名称模糊查询获得）
+
+        Returns:
+            JSON 字符串，包含:
+            - success: 是否成功
+            - error: 错误信息（如果有）
+            - data: 任务详情对象（仅非空字段，包含 jobCount 等完整信息）
+            - detail: 摘要信息（id、title、status、jobCount、published）
+        """
+
+        try:
+            resp = caller.get_task(task_id)
+            if resp.status_code != 200:
+                return json.dumps(
+                    {"success": False, "error": f"查询失败: HTTP {resp.status_code}"},
+                    ensure_ascii=False,
+                    indent=2,
+                )
+
+            # 从响应体中提取任务数据（body 结构为 {"code": 0, "metadata": {task_detail}}）
+            body_dict = resp.body if isinstance(resp.body, dict) else {}
+            task_data = body_dict.get("metadata", {}) if isinstance(body_dict, dict) else {}
+
+            # 筛选掉空值字段，保留有内容的字段便于查看
+            non_null_data = {k: v for k, v in task_data.items() if v is not None}
+
+            # 摘要信息
+            detail = {
+                "id": task_data.get("id"),
+                "title": task_data.get("title"),
+                "status": task_data.get("status"),
+                "published": task_data.get("status") == _STATUS_PUBLISHED,
+                "taskCategory": task_data.get("taskCategory"),
+                "jobCount": task_data.get("jobCount", 0),
+            }
+
+            return json.dumps(
+                {
+                    "success": True,
+                    "data": non_null_data,
+                    "detail": detail,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        except Exception as e:
+            return json.dumps(
+                {"success": False, "error": f"查询任务详情异常: {e}"},
+                ensure_ascii=False,
+                indent=2,
+            )
+
 
       
             
