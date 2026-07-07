@@ -253,8 +253,155 @@ def register_tools(mcp, caller) -> None:
                 ensure_ascii=False,
                 indent=2,
             )
+        
+    @mcp.tool()
+    def job_detail(job_id: int) -> str:
+        """查询单个作业详情（完整字段）。
 
-    
+        Args:
+            job_id: 作业 ID（必须为数字，可通过 job_summary 按名称模糊查询获得）
+
+        Returns:
+            JSON 字符串，包含:
+            - success: 是否成功
+            - error: 错误信息（如果有）
+            - data: 作业详情对象（仅非空字段，包含 taskId 等完整信息）
+            - detail: 摘要信息（id、title、status、taskId、taskTitle、taskCategory）
+        """
+        try:
+            resp = caller.get_job(job_id)
+            if resp.status_code != 200:
+                return json.dumps(
+                    {"success": False, "error": f"查询失败: HTTP {resp.status_code}"},
+                    ensure_ascii=False,
+                    indent=2,
+                )
+
+            # 从响应体中提取作业数据（body 结构为 {"code": 0, "metadata": {job_detail}}）
+            body_dict = resp.body if isinstance(resp.body, dict) else {}
+            job_data = body_dict.get("metadata", {}) if isinstance(body_dict, dict) else {}
+
+            # 筛选掉空值字段，保留有内容的字段便于查看
+            non_null_data = {k: v for k, v in job_data.items() if v is not None}
+
+            # 摘要信息
+            detail = {
+                "id": job_data.get("id"),
+                "title": job_data.get("title"),
+                "status": job_data.get("status"),
+                "taskId": job_data.get("taskId"),
+                "taskTitle": job_data.get("taskTitle"),
+                "taskCategory": job_data.get("taskCategory"),
+            }
+            return json.dumps(
+                {
+                    "success": True,
+                    "data": non_null_data,
+                    "detail": detail,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        
+        except Exception as e:
+            return json.dumps(
+                {"success": False, "error": f"查询作业详情异常: {e}"},
+                ensure_ascii=False,
+                indent=2,
+            )
+
+    @mcp.tool()
+    def task_job_details(
+        task_id: int,
+        page_num: int = 1,
+        page_size: int = 100,
+    ) -> str:
+        """查询指定任务下所有作业的详细信息。
+
+        Args:
+            task_id: 任务 ID（必填，必须为数字）
+            page_num: 页码，默认 1
+            page_size: 每页数量，默认 100
+
+        Returns:
+            JSON 字符串，包含:
+            - success: 是否成功
+            - total: 作业总数
+            - task_id: 任务 ID
+            - task_title: 任务标题
+            - task_category: 任务分类
+            - jobs: 作业详情列表（每个作业的完整非空字段）
+        """
+
+        try:
+            # 获取任务基本信息（用于上下文）
+            task_resp = caller.get_task(task_id)
+            task_title = ""
+            task_category = ""
+            if task_resp.status_code == 200:
+                body_dict = task_resp.body if isinstance(task_resp.body, dict) else {}
+                task_data = body_dict.get("metadata", {}) if isinstance(body_dict, dict) else {}
+                task_title = task_data.get("title", "")
+                task_category = task_data.get("taskCategory", "")
+
+            # 获取作业列表
+            resp = caller.list_jobs(
+                taskId=task_id,
+                pageNum=page_num,
+                pageSize=page_size,
+            )
+            if resp.status_code != 200:
+                return json.dumps(
+                    {"success": False, "error": f"查询失败: HTTP {resp.status_code}"},
+                    ensure_ascii=False,
+                    indent=2,
+                )
+
+            jobs = _extract_metadata_items(resp.body)
+
+            # 从响应元数据中获取总条数
+            body_dict = resp.body if isinstance(resp.body, dict) else {}
+            metadata = body_dict.get("metadata", {}) if isinstance(body_dict, dict) else {}
+            total_count = metadata.get("total", len(jobs)) if isinstance(metadata, dict) else len(jobs)
+
+            # 逐个获取作业详情（list_jobs 接口可能不返回 progress 等进度字段）
+            job_list = []
+            for j in jobs:
+                if not isinstance(j, dict):
+                    continue
+                job_id = j.get("id")
+                if job_id is not None:
+                    detail_resp = caller.get_job(job_id)
+                    if detail_resp.status_code == 200:
+                        detail_body = detail_resp.body if isinstance(detail_resp.body, dict) else {}
+                        detail_data = detail_body.get("metadata", {}) if isinstance(detail_body, dict) else {}
+                        # 合并数据：detail 中的非空值优先
+                        merged = {**{k: v for k, v in j.items() if v is not None},
+                                  **{k: v for k, v in detail_data.items() if v is not None}}
+                        job_list.append({k: v for k, v in merged.items() if v is not None})
+                        continue
+                # 回退：直接用列表中的数据
+                job_list.append({k: v for k, v in j.items() if v is not None})
+
+            return json.dumps(
+                {
+                    "success": True,
+                    "total": total_count,
+                    "task_id": task_id,
+                    "task_title": task_title,
+                    "task_category": task_category,
+                    "jobs": job_list,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+
+        except Exception as e:
+            return json.dumps(
+                {"success": False, "error": f"查询任务作业详情异常: {e}"},
+                ensure_ascii=False,
+                indent=2,
+            )
 
 
       

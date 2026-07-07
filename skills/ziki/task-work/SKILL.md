@@ -2,10 +2,14 @@
 name: task-work
 description: >
   Provides task overview statistics via `task_summary`, single-task detail
-  query via `task_detail`, and platform-wide job overview via `job_summary`
-  on the Ziki platform. Use `task_summary` when the user asks "how many tasks"
-  or wants a platform-wide overview; use `task_detail` when the user asks about
-  a specific task's full details; use `job_summary` for platform job overview.
+  query via `task_detail`, platform-wide job overview via `job_summary`,
+  and individual job detail query via `job_detail`, and per-task job listing
+  via `task_job_details` on the Ziki platform.
+  Use `task_summary` when the user asks "how many tasks" or wants a platform-wide
+  overview; use `task_detail` when the user asks about a specific task's full
+  details; use `job_summary` for platform job overview; use `job_detail` when
+  the user asks about a specific job's full details; use `task_job_details` when
+  the user asks "show me all jobs under task xxx".
 tags: [zata, ziki, task-work, summary, statistics, detail]
 triggers:
   # 任务概览
@@ -28,19 +32,31 @@ triggers:
   - user says "帮我看看平台的作业情况"
   - user wants to know job distribution across task categories
   - user asks "哪些任务有作业" / "which tasks have jobs"
+  # 作业详情
+  - user asks "帮我看看xx作业的详情" / "show me the details of job xxx"
+  - user says "查询作业 42 的详细信息" / "query job xxx details"
+  - user asks "这个作业是什么情况" referring to a specific job
+  - user wants to see a specific job's full info (collect status, review status, progress, items)
+  # 任务作业详情
+  - user asks "帮我看看xx任务的作业详情" / "show me all jobs under task xxx"
+  - user says "xx任务下有哪些作业" / "list jobs under task xxx"
+  - user says "查一下任务 42 的作业情况" / "query jobs of task xxx"
+  - user wants to see detailed info of all jobs under a specific task
 ---
 
 # Task Work / 任务概览与详情查询
 
 ## 概述
 
-本 skill 覆盖三个任务查询工具：
+本 skill 覆盖五个任务查询工具：
 
 | 工具 | 用途 |
 |------|------|
 | `task_summary` | 平台任务概要统计（总数、分类统计） |
 | `task_detail` | 单个任务的完整详情查询 |
 | `job_summary` | 平台作业概览（总数、分类统计、各任务作业数） |
+| `job_detail` | 单个作业的完整详情查询 |
+| `task_job_details` | 指定任务下所有作业的详细信息查询 |
 
 ---
 
@@ -296,3 +312,247 @@ Optional Params:
 - 默认返回 200 条任务数据，覆盖绝大部分场景；若平台任务超过 200，可通过调整 `page_size` 扩展
 - 统计口径：每个任务的 `jobCount` 由服务端维护，反映任务当前的作业数量
 - 若需要查看**某个具体任务的作业详情**（如作业数、采集进度等），可结合 `task_detail` 进一步查询
+
+---
+
+## 五、单个作业详情查询（job_detail）
+
+### 用途
+
+查询平台上**指定作业的完整详细信息**，包括：
+
+- **作业基本信息** — ID、名称、所属任务（taskId、taskTitle、taskCategory）
+- **采集状态**（collectStatus）— 0=未分配、1=已分配、2=已领取
+- **审核状态**（reviewStatus）— 0=未分配、1=已分配
+- **人员配置** — 需要采集人数（requiredMember）、重复次数（requiredRepeat）、已领取数（receiveCount）
+- **进度信息**（progress）— 采集进度详情
+- **采集条目**（items）— 作业包含的具体采集项
+- **其他信息** — 描述（description）、创建时间、更新时间等
+
+### 调用方式
+
+```
+Tool: job_detail
+Required Params:
+  job_id: int  — 作业 ID（必填，必须为数字）
+```
+
+### 返回示例
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 101,
+    "name": "商超收银-作业A",
+    "taskId": 42,
+    "taskTitle": "商超收银场景采集",
+    "taskCategory": "scene",
+    "type": 1,
+    "collectStatus": 2,
+    "reviewStatus": 1,
+    "requiredMember": 3,
+    "requiredRepeat": 1,
+    "receiveCount": 2,
+    "description": "采集收银台区域的视频数据",
+    "progress": {
+      "normalCollect": 50,
+      "normalCollectTotal": 100,
+      "normalReview": 10,
+      "abnormalCollect": 2,
+      "abnormalCollectTotal": 5,
+      "abnormalReview": 0
+    },
+    "items": [{"id": 1, "name": "正面拍摄"}, {"id": 2, "name": "侧面拍摄"}],
+    "createdAt": "2024-03-15 10:30:00",
+    "updatedAt": "2024-03-16 14:20:00"
+  },
+  "detail": {
+    "id": 101,
+    "title": "商超收银-作业A",
+    "status": null,
+    "taskId": 42,
+    "taskTitle": "商超收银场景采集",
+    "taskCategory": "scene"
+  }
+}
+```
+
+### 工作流
+
+**查询某个作业的详情：**
+
+1. 用户提出查看作业详情的意图：
+   - "帮我看看作业 101 的详情"
+   - "查询作业 xxx 的详细信息"
+   - "这个作业是什么情况？"（上下文已知有某个作业）
+
+2. **获取作业 ID：**
+   - **直接方式：** 如果用户直接给了作业 ID（如"看看作业 101"），直接使用
+   - **间接方式：** 如果用户在查看某个任务的详情后说"看看这个任务的作业"，可先告知用户当前工具暂不支持按任务列出所有作业 ID，需提供具体作业 ID
+
+3. **获取作业详情：**
+   - 调用 `job_detail(job_id=<id>)`
+
+4. **向用户汇报完整信息**（用自然语言风格，不要用表格或结构化列表，像聊天一样自然地组织）：
+
+   **基本原则：**
+   - 🚫 **不要使用表格、markdown 列表或结构化字段列表**来罗列字段
+   - ✅ 用完整的句子串联信息，像跟朋友聊天一样自然但严谨地组织信息
+   - 非空字段才汇报，null/空字段直接忽略
+
+   **推荐的口语化风格示例：**
+
+   > 这是 **商超收银-作业A**（ID: 101）的详细信息——
+   >
+   > 它属于 **商超收银场景采集** 任务（场景任务），目前采集状态是**已领取**，审核已分配了审核员。这个作业需要 3 个人采集，每人重复 1 次，目前已有 2 人领取。进度方面，总共 100 条计划，已采集 50 条。采集项包括正面拍摄和侧面拍摄。
+   >
+   > 备注信息：采集收银台区域的视频数据。
+   >
+   > 创建时间是 2024-03-15 10:30:00。
+
+   **关键信息需自然带出，不要遗漏：**
+   - 作业名称 + ID → 开篇一句话点明
+   - 所属任务（taskTitle、taskCategory）→ 这是最重要的归属信息，紧跟其后
+   - 采集状态 → "未分配/已分配/已领取"
+   - 审核状态 → "未分配/已分配"
+   - 人员配置 → 需要多少人、已领取多少
+   - 进度 → 用口语表达完成比例
+   - 其他非空字段 → 串联到句子中
+
+### 场景示例
+
+| 用户提问 | AI 执行步骤 | 回复要点 |
+|----------|------------|----------|
+| "帮我看看作业 101 的详情" | `job_detail(job_id=101)` | 展示名称、所属任务、采集状态、审核状态、人员配置、进度等 |
+| "这个作业是什么情况？"（上下文已知 job_id） | `job_detail(job_id=当前作业ID)` | 完整汇报所有非空字段 |
+
+### 注意事项
+
+- `job_detail` 查询的是**单个作业**的完整信息，与 `job_summary`（平台级聚合统计）不同
+- 必须传入有效的作业 ID，可通过上下文或用户直接提供获取
+
+---
+
+## 六、任务作业详情查询（task_job_details）
+
+### 用途
+
+查询**指定任务下所有作业的详细信息**。当用户说"帮我看看xx任务的作业详情"时使用此工具。
+
+返回信息包括：
+
+- **作业总数** — 该任务下有多少个作业
+- **任务归属** — 任务 ID、标题、分类
+- **每个作业的完整详情** — 作业 ID、名称、采集状态、审核状态、人员配置、进度、采集条目、创建时间等
+
+### 调用方式
+
+```
+Tool: task_job_details
+Required Params:
+  task_id: int  — 任务 ID（必填，必须为数字）
+Optional Params:
+  page_num: int     — 页码，默认 1
+  page_size: int    — 每页数量，默认 100
+```
+
+### 返回示例
+
+```json
+{
+  "success": true,
+  "total": 3,
+  "task_id": 42,
+  "task_title": "商超收银场景采集",
+  "task_category": "scene",
+  "jobs": [
+    {
+      "id": 101,
+      "name": "商超收银-作业A",
+      "collectStatus": 2,
+      "reviewStatus": 1,
+      "requiredMember": 3,
+      "requiredRepeat": 1,
+      "receiveCount": 2,
+      "progress": {
+        "normalCollect": 1,
+        "normalCollectTotal": 5,
+        "normalReview": 0,
+        "abnormalCollect": 0,
+        "abnormalCollectTotal": 0,
+        "abnormalReview": 0
+      },
+      "items": [{"id": 1, "name": "正面拍摄"}],
+      "description": "采集收银台区域的视频数据",
+      "createdAt": "2024-03-15 10:30:00"
+    },
+    {
+      "id": 102,
+      "name": "商超收银-作业B",
+      "collectStatus": 1,
+      "reviewStatus": 0,
+      "requiredMember": 2,
+      "requiredRepeat": 1,
+      "receiveCount": 0,
+      "createdAt": "2024-03-15 11:00:00"
+    }
+  ]
+}
+```
+
+### 工作流
+
+**查询某个任务下的所有作业详情（完整步骤）：**
+
+1. 用户提出查看任务作业详情的意图：
+   - "帮我看看xx任务的作业详情"
+   - "xx任务下有哪些作业？"
+   - "查一下任务 42 的作业情况"
+
+2. **获取任务 ID：**
+   - **首选方式：** 调用 `task_summary(title="<任务名>")`，从返回的 `tasks` 列表中找到目标任务的 `id`
+   - **备选方式：** 如果用户直接给出了任务 ID（如"看看任务42的作业"），直接使用
+
+3. **获取作业详情列表：**
+   - 调用 `task_job_details(task_id=<id>)`
+
+4. **向用户汇报完整信息**（用自然语言风格，不要用表格或结构化列表，像聊天一样自然地组织）：
+
+   **基本原则：**
+   - 🚫 **不要使用表格、markdown 列表或结构化字段列表**来罗列字段
+   - ✅ 用完整的句子串联信息，像跟朋友聊天一样自然
+   - 非空字段才汇报，null/空字段直接忽略
+
+   **推荐的口语化风格示例：**
+
+   > **商超收银场景采集**（任务 ID: 42）下共有 **3** 个作业——
+   >
+   > **作业A**（ID: 101），采集状态是**已领取**，审核已分配了审核员。需要 3 人采集，每人重复 1 次，已有 2 人领取。进度方面，总共 100 条已采集 50 条。采集项包括正面拍摄。备注：采集收银台区域的视频数据。创建于 2024-03-15 10:30。
+   >
+   > **作业B**（ID: 102），采集状态是**已分配**，还未分配审核员。需要 2 人采集，每人重复 1 次，目前还没人领取。创建于 2024-03-15 11:00。
+
+   **关键信息需自然带出，不要遗漏（逐个作业汇报）：**
+   - 作业名称 + ID → 每个作业以名称开头
+   - 采集状态 → "未分配/已分配/已领取"
+   - 审核状态 → "未分配/已分配"
+   - 人员配置 → 需要多少人、已领取多少
+   - 进度 → 有采集进度时用口语表达
+   - 采集项 → 有 items 时提及
+   - 其他非空字段 → 串联到句子中
+
+5. 如果用户想进一步了解某个作业的详情，可引导用户提供作业 ID 并使用 `job_detail` 查询。
+
+### 场景示例
+
+| 用户提问 | AI 执行步骤 | 回复要点 |
+|----------|------------|----------|
+| "帮我看看任务 42 的作业详情" | `task_job_details(task_id=42)` | 展示任务名称、作业总数、每个作业的名称、采集/审核状态、人员配置、进度等 |
+| "'商超收银'这个任务下的作业情况怎么样？" | 1. `task_summary(title="商超收银")` → task_id<br>2. `task_job_details(task_id=..)` | 完整汇报所有作业的非空字段 |
+| "查一下 xx 任务有没有作业" | 1. 查 task_id<br>2. `task_job_details(task_id=..)` | "有 X 个作业" 或 "暂无作业" |
+
+### 注意事项
+
+- `task_job_details` 查询的是**某个任务下所有作业**的详情，与 `job_detail`（单个作业）不同
+- 作业列表中的每个作业已过滤掉空值字段，仅展示有内容的字段
+- 如果用户只关心某个任务是否有作业（而不需要每个作业详情），可使用 `task_detail` 查看 jobCount 字段
