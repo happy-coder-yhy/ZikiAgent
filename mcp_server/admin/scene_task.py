@@ -72,9 +72,10 @@ def register_tools(mcp, caller) -> None:
         task_type: str,
         task_purpose_id: int,
         difficulty: str,
-        device_type_id: int,
+        device_scheme_id: int,
         description: Optional[str] = None,
         collect_method: str = "web_video",
+        device_type_id: Optional[int] = None,
         collect_mode_id: Optional[int] = None,
         collect_scheme_id: Optional[int] = None,
         space_ids: Optional[list[int]] = None,
@@ -86,14 +87,14 @@ def register_tools(mcp, caller) -> None:
         """创建场景采集任务。
 
         在指定项目的指定场景下创建一个场景视频采集任务。
-        先调用 get_platform_config 获取可用的 project_id、scene_id、device_type_id 和 task_purpose_id。
+        先调用 get_platform_config 获取可用的 project_id、scene_id、device_scheme_id 和 task_purpose_id。
         当用户没有提供以下必填信息时，请逐一询问用户，直至全部填写完整再调用此工具：
 
         **必填字段说明：**
         - task_type (str): 任务类型。"短程" 或 "长程"
         - task_purpose_id (int): 任务用途ID。可通过 get_platform_config 获取可用的任务用途标签列表及其ID
         - difficulty (str): 任务难度。"简单"、"普通" 或 "困难"
-        - device_type_id (int): 设备类型ID。可通过 get_platform_config 获取可用的设备类型列表及其ID
+        - device_scheme_id (int): 设备方案ID。可通过 get_platform_config 获取可用的设备方案列表及其ID
 
         Args:
             project_id: 项目 ID（通过 get_platform_config 获取）
@@ -102,9 +103,10 @@ def register_tools(mcp, caller) -> None:
             task_type: 任务类型 — "短程" 或 "长程"
             task_purpose_id: 任务用途ID — 通过 get_platform_config 的 task_purposes 列表获取
             difficulty: 任务难度 — "简单"、"普通" 或 "困难"
-            device_type_id: 设备类型ID — 通过 get_platform_config 的 device_types 列表获取
+            device_scheme_id: 设备方案ID — 通过 get_platform_config 的 device_schemes 列表获取
             description: 任务描述（可选）
             collect_method: 采集方式，默认 "web_video"
+            device_type_id: 设备类型ID（可选）
             collect_mode_id: 采集模式标签 ID（可选）
             collect_scheme_id: 采集方案标签 ID（可选）
             space_ids: 空间标签 ID 列表（可选）
@@ -147,6 +149,7 @@ def register_tools(mcp, caller) -> None:
                 taskPurposeId=task_purpose_id,
                 taskType=task_type_val,
                 difficulty=difficulty_val,
+                deviceSchemeId=device_scheme_id,
                 deviceTypeId=device_type_id,
                 collectModeId=collect_mode_id,
                 collectSchemeId=collect_scheme_id,
@@ -180,21 +183,27 @@ def register_tools(mcp, caller) -> None:
     @mcp.tool()
     def get_scene_task(
         title: str,
+        collect_method: str,
         project_id: Optional[int] = None,
         page_size: int = 20,
     ) -> str:
         """根据任务名称查询场景采集任务。
+
+        ⚠️ collect_method 为必填参数，不可省略。
+        平台接口现在按采集方式隔离数据，必须指定 collect_method 才能查询。
 
         在修改任务前先调用此工具查询任务是否存在，获取任务 ID 和当前状态。
         支持模糊搜索，返回匹配任务的完整 JSON 信息。
 
         Args:
             title: 任务标题（支持模糊匹配）
+            collect_method: **必填**。采集方式，如 "web_video"、"robot" 等
             project_id: 项目 ID（选填，缩小搜索范围）
             page_size: 每页数量（默认 20，最大 200）
         """
         try:
             response = caller.list_tasks(
+                collectMethod=collect_method,
                 title=title,
                 projectId=project_id,
                 pageNum=1,
@@ -296,6 +305,7 @@ def register_tools(mcp, caller) -> None:
         task_type: Optional[str] = None,
         task_purpose_id: Optional[int] = None,
         difficulty: Optional[str] = None,
+        device_scheme_id: Optional[int] = None,
         device_type_id: Optional[int] = None,
         project_id: Optional[int] = None,
         collect_method: Optional[str] = None,
@@ -321,6 +331,7 @@ def register_tools(mcp, caller) -> None:
             task_type: 新的任务类型 — "短程" 或 "长程"（选填）
             task_purpose_id: 新的任务用途 ID（选填）
             difficulty: 新的难度 — "简单"、"普通" 或 "困难"（选填）
+            device_scheme_id: 新的设备方案 ID（选填）
             device_type_id: 新的设备类型 ID（选填）
             project_id: 新的项目 ID（选填，修改任务所属项目）
             collect_method: 新的采集方式（选填）
@@ -341,6 +352,7 @@ def register_tools(mcp, caller) -> None:
                 "task_type": task_type,
                 "task_purpose_id": task_purpose_id,
                 "difficulty": difficulty,
+                "device_scheme_id": device_scheme_id,
                 "device_type_id": device_type_id,
                 "project_id": project_id,
                 "collect_method": collect_method,
@@ -443,6 +455,7 @@ def register_tools(mcp, caller) -> None:
         merged_project_id = project_id if project_id is not None else cur_project_id
         cur_collect_method = current.get("collectMethod")
         cur_purpose_id = current.get("taskPurposeId")
+        cur_device_scheme_id = current.get("deviceSchemeId")
         cur_device_type_id = current.get("deviceTypeId")
         cur_collect_mode_id = current.get("collectModeId")
         cur_collect_scheme_id = current.get("collectSchemeId")
@@ -487,6 +500,7 @@ def register_tools(mcp, caller) -> None:
                     taskPurposeId=task_purpose_id if task_purpose_id is not None else cur_purpose_id,
                     taskType=task_type_val if task_type_val is not None else cur_task_type,
                     difficulty=difficulty_val if difficulty_val is not None else cur_difficulty,
+                    deviceSchemeId=device_scheme_id if device_scheme_id is not None else cur_device_scheme_id,
                     deviceTypeId=device_type_id if device_type_id is not None else cur_device_type_id,
                     collectModeId=collect_mode_id if collect_mode_id is not None else cur_collect_mode_id,
                     collectSchemeId=collect_scheme_id if collect_scheme_id is not None else cur_collect_scheme_id,

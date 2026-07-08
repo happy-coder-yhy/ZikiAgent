@@ -54,7 +54,7 @@ triggers:
 | `project_id` | `get_platform_config` → `projects` | 目标项目的数字 ID |
 | `scene_id` | `get_scene(name="...")` 或 `get_platform_config` → `scene_labels` | 场景标签的数字 ID，优先用 `get_scene`（1 次调用） |
 | `task_purpose_id` | `get_task_purpose(name="...")` 或 `get_platform_config` → `task_purposes` | 任务用途 ID，优先用 `get_task_purpose`（1 次调用） |
-| `device_type_id` | `get_platform_config` → `device_types` | 设备类型 ID |
+| `device_scheme_id` | `get_platform_config` → `device_schemes` | 设备方案 ID |
 | `task_type` | 直接由用户指定 | "短程" 或 "长程" |
 | `difficulty` | 直接由用户指定 | "简单"、"普通" 或 "困难" |
 
@@ -69,10 +69,11 @@ Required Params:
   - task_type: string     — "短程" 或 "长程"
   - task_purpose_id: int  — 任务用途 ID（来自 get_platform_config）
   - difficulty: string    — "简单"、"普通" 或 "困难"
-  - device_type_id: int   — 设备类型 ID（来自 get_platform_config）
+  - device_scheme_id: int — 设备方案 ID（来自 get_platform_config）
 Optional Params:
   - description: string           — 任务描述
   - collect_method: string        — 采集方式，默认 "web_video"
+  - device_type_id: int           — 设备类型 ID（可选）
   - collect_mode_id: int          — 采集模式标签 ID
   - collect_scheme_id: int        — 采集方案标签 ID
   - space_ids: int[]              — 空间标签 ID 列表
@@ -93,7 +94,7 @@ Optional Params:
    - 用户未提供 task_type → 询问"短程还是长程？"
    - 用户未提供 task_purpose → 展示可用用途列表，询问用户
    - 用户未提供 difficulty → 询问"简单、普通还是困难？"
-   - 用户未提供 device_type → 展示可用设备类型列表，询问用户
+   - 用户未提供 device_scheme → 展示可用设备方案列表，询问用户
 4. 组装参数后调用 `create_scene_task`
 5. 返回创建结果给用户
 
@@ -114,6 +115,7 @@ Optional Params（至少传一个）:
   - task_type: string       — 新的任务类型："短程" 或 "长程"
   - task_purpose_id: int    — 新的任务用途 ID
   - difficulty: string      — 新的难度："简单"、"普通" 或 "困难"
+  - device_scheme_id: int   — 新的设备方案 ID
   - device_type_id: int     — 新的设备类型 ID
   - project_id: int         — 新的项目 ID（修改任务所属项目）
   - collect_method: string  — 新的采集方式
@@ -129,22 +131,23 @@ Optional Params（至少传一个）:
 ### 查询工作流
 
 1. 用户想查看某个场景任务的详细信息
-2. 调用 `get_scene_task(title="<任务名>")` 查询
-3. 如果 `found: false`，告知用户该任务不存在
-4. 如果 `count == 1`，`task` 字段包含任务的完整 JSON 信息
-5. 如果 `count > 1`，`tasks` 字段列出多个匹配项，让用户指定具体 ID
+2. ⚠️ `get_scene_task` 现在需要 `collect_method` 必填参数。
+3. 调用 `get_scene_task(title="<任务名>", collect_method="web_video")` 查询
+4. 如果 `found: false`，告知用户该任务不存在
+5. 如果 `count == 1`，`task` 字段包含任务的完整 JSON 信息
+6. 如果 `count > 1`，`tasks` 字段列出多个匹配项，让用户指定具体 ID
 
 ### 修改工作流
 
 1. 用户提出修改意图（如"帮我改一下任务XX的标题"）
 2. 如果用户没说要改哪个字段 → **先询问用户**"您想修改哪个字段？"
 3. 确定 `task_id`：
-   - **首选**：调用 `get_scene_task(title="<任务名>")` 查询任务，获取 `task.id` 和当前状态
+   - **首选**：调用 `get_scene_task(title="<任务名>", collect_method="web_video")` 查询任务，获取 `task.id` 和当前状态
    - **备选**：用 `session_search(query="<任务名>")` 从历史会话中查找任务 ID
 4. **检查任务状态**：如果 `task.status == 2`（已发布）：
    - 用户**只修改 title / description / remark** → 允许，继续执行
    - 用户修改 **title、description、remark 以外的字段** → **直接拒绝**，告诉用户"该任务已发布，无法修改，请先取消发布"，**不要调用 `update_scene_task`或任何工具以及api**
-5. 如果修改涉及 scene_id，优先用 `get_scene(name="...")`，涉及 task_purpose_id，优先用 `get_task_purpose(name="...")` 查询（1 次 API 调用）；涉及 device_type_id 等其他 ID 字段则调用 `get_platform_config`
+5. 如果修改涉及 scene_id，优先用 `get_scene(name="...")`，涉及 task_purpose_id，优先用 `get_task_purpose(name="...")` 查询（1 次 API 调用）；涉及 device_scheme_id、device_type_id 等其他 ID 字段则调用 `get_platform_config`
 6. 调用 `update_scene_task` 传入 task_id 和需要修改的字段
 7. 检查返回结果：`success: true` + `updated_fields` 列出实际变更的字段
 
@@ -193,7 +196,7 @@ Required Params:
 ### 发布工作流
 
 1. 用户提出发布意图（如"帮我发布XX任务"）
-2. 调用 `get_scene_task(title="<任务名>")` 查询任务，获取 `task.id` 和当前状态
+2. 调用 `get_scene_task(title="<任务名>", collect_method="web_video")` 查询任务，获取 `task.id` 和当前状态
 3. **检查任务状态**：
    - `status=1`（未发布）→ 可以发布
    - `status=2`（已发布）→ 提示用户"该任务已是发布状态，无需重复发布"
@@ -205,13 +208,14 @@ Required Params:
 
 - **仅限未发布（status=1）的任务** — 已发布（status=2）的任务再次发布会被 API 拒绝
 - 发布后任务将可以被采集员领取执行
-- 发布前建议先确认任务的所有必填字段已填写完整（标题、场景、设备类型、采集员等）
+- 发布前建议先确认任务的所有必填字段已填写完整（标题、场景、设备方案、采集员等）
 - **发布后如需修改，只能修改 title、description、remark**。修改其他字段则直接拒绝，不要调用 `update_scene_task` 或任何其他工具。
 
 ---
 
 ## 四、通用注意
 
+- **`get_platform_config` 可能不返回 `device_schemes`**：当前平台版本调用 `get_platform_config` 后，输出中没有 `device_schemes` 字段，只有 `device_types`。如果需要传 `device_scheme_id`，尝试使用对应的 `device_types` ID（如"互联网视频采集"对应 device_type_id=9，device_scheme_id 也用 9）。如果仍然 404，可能是 MCP 服务器中的 API 端点路径问题——参考 `scene-task-creator` skill 中的修复记录。
 - **所有 ID 必须从 `get_platform_config` 获取**，不要硬编码或猜测
 - task_type 只接受 "短程" 或 "长程"，其他值会报错
 - difficulty 只接受 "简单"、"普通" 或 "困难"，其他值会报错

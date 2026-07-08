@@ -393,6 +393,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
             task_type="短程",
             task_purpose_id=100,
             difficulty="简单",
+            device_scheme_id=200,
             device_type_id=200,
         )
         result = json.loads(result_str)
@@ -408,6 +409,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
             taskPurposeId=100,
             taskType=305,
             difficulty=1,
+            deviceSchemeId=200,
             deviceTypeId=200,
             collectModeId=None,
             collectSchemeId=None,
@@ -415,6 +417,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
             customLabelIds=None,
             recognitionEnabled=None,
             videoQuality=None,
+            remark=None,
         )
 
     def test_create_scene_task_with_all_params(self):
@@ -433,6 +436,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
             task_type="长程",
             task_purpose_id=10,
             difficulty="困难",
+            device_scheme_id=300,
             device_type_id=300,
             description="库房A区",
             collect_method="robot",
@@ -455,6 +459,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
             taskPurposeId=10,
             taskType=304,
             difficulty=3,
+            deviceSchemeId=300,
             deviceTypeId=300,
             collectModeId=20,
             collectSchemeId=30,
@@ -462,6 +467,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
             customLabelIds=[50, 60],
             recognitionEnabled=True,
             videoQuality=1080,
+            remark=None,
         )
 
     def test_create_scene_task_api_error(self):
@@ -480,6 +486,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
             task_type="短程",
             task_purpose_id=100,
             difficulty="简单",
+            device_scheme_id=200,
             device_type_id=200,
         )
         result = json.loads(result_str)
@@ -498,6 +505,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
             task_type="短程",
             task_purpose_id=100,
             difficulty="简单",
+            device_scheme_id=200,
             device_type_id=200,
         )
         result = json.loads(result_str)
@@ -514,6 +522,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
             task_type="超长程",
             task_purpose_id=100,
             difficulty="简单",
+            device_scheme_id=200,
             device_type_id=200,
         )
         result = json.loads(result_str)
@@ -531,6 +540,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
             task_type="短程",
             task_purpose_id=100,
             difficulty="中等",
+            device_scheme_id=200,
             device_type_id=200,
         )
         result = json.loads(result_str)
@@ -733,7 +743,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
             "deviceTypeId": 200, "collectMethod": "web_video", "taskPurposeId": 100,
         })
 
-        result_str = self.tools["get_scene_task"](title="商超收银")
+        result_str = self.tools["get_scene_task"](title="商超收银", collect_method="web_video")
         result = json.loads(result_str)
 
         self.assertTrue(result["success"])
@@ -742,6 +752,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
         self.assertEqual(result["task"]["id"], 42)
         self.assertEqual(result["task"]["title"], "商超收银场景采集")
         self.mock_caller.list_tasks.assert_called_once_with(
+            collectMethod="web_video",
             title="商超收银", projectId=None, pageNum=1, pageSize=20
         )
         self.mock_caller.get_task.assert_called_once_with(taskId=42)
@@ -753,7 +764,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
             {"id": 2, "title": "超市B采集", "projectId": 1, "status": 0},
         ])
 
-        result_str = self.tools["get_scene_task"](title="超市")
+        result_str = self.tools["get_scene_task"](title="超市", collect_method="web_video")
         result = json.loads(result_str)
 
         self.assertTrue(result["success"])
@@ -768,7 +779,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
         """get_scene_task 没有匹配任务时返回 found: false。"""
         self._mock_list_tasks([])
 
-        result_str = self.tools["get_scene_task"](title="不存在的任务")
+        result_str = self.tools["get_scene_task"](title="不存在的任务", collect_method="web_video")
         result = json.loads(result_str)
 
         self.assertTrue(result["success"])
@@ -786,12 +797,13 @@ class MCPToolFunctionsTest(unittest.TestCase):
             "taskType": 304, "difficulty": 2, "status": 0,
         })
 
-        result_str = self.tools["get_scene_task"](title="仓库盘点", project_id=3)
+        result_str = self.tools["get_scene_task"](title="仓库盘点", collect_method="web_video", project_id=3)
         result = json.loads(result_str)
 
         self.assertTrue(result["success"])
         self.assertTrue(result["found"])
         self.mock_caller.list_tasks.assert_called_once_with(
+            collectMethod="web_video",
             title="仓库盘点", projectId=3, pageNum=1, pageSize=20
         )
 
@@ -804,7 +816,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
             raw_text="...",
         )
 
-        result_str = self.tools["get_scene_task"](title="测试")
+        result_str = self.tools["get_scene_task"](title="测试", collect_method="web_video")
         result = json.loads(result_str)
 
         self.assertFalse(result["success"])
@@ -814,7 +826,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
         """get_scene_task 异常时返回错误 JSON。"""
         self.mock_caller.list_tasks.side_effect = RuntimeError("网络超时")
 
-        result_str = self.tools["get_scene_task"](title="测试")
+        result_str = self.tools["get_scene_task"](title="测试", collect_method="web_video")
         result = json.loads(result_str)
 
         self.assertFalse(result["success"])
@@ -828,7 +840,7 @@ class MCPToolFunctionsTest(unittest.TestCase):
         # get_task 失败
         self.mock_caller.get_task.side_effect = RuntimeError("连接断开")
 
-        result_str = self.tools["get_scene_task"](title="商超收银")
+        result_str = self.tools["get_scene_task"](title="商超收银", collect_method="web_video")
         result = json.loads(result_str)
 
         self.assertTrue(result["success"])

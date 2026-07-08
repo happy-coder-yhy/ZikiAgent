@@ -684,6 +684,7 @@ class ZataAPICaller(APICaller):
         collectors: Optional[Sequence[TaskUserReq]] = None,
         customLabelIds: Optional[Sequence[int]] = None,
         description: Optional[str] = None,
+        deviceSchemeId: Optional[int] = None,
         deviceTypeId: Optional[int] = None,
         difficulty: Optional[int] = None,
         planCollectCount: Optional[int] = None,
@@ -713,6 +714,7 @@ class ZataAPICaller(APICaller):
             collectors=collectors,
             customLabelIds=customLabelIds,
             description=description,
+            deviceSchemeId=deviceSchemeId,
             deviceTypeId=deviceTypeId,
             difficulty=difficulty,
             planCollectCount=planCollectCount,
@@ -729,7 +731,7 @@ class ZataAPICaller(APICaller):
         )
         return self._request_data_manager(
             method="POST",
-            path=f"/projects/{projectId}/tasks",
+            path="/tasks",
             json_body=json_body,
         )
 
@@ -1494,6 +1496,38 @@ class ZataAPICaller(APICaller):
             params=_build_json_body(name=name, pageNum=pageNum, pageSize=pageSize),
         )
 
+    def list_device_schemes(
+        self,
+        schemeType: Optional[str] = None,
+        name: Optional[str] = None,
+        deviceTypeCode: Optional[str] = None,
+        pageNum: Optional[int] = None,
+        pageSize: Optional[int] = None,
+    ) -> APIResponse:
+        """查询设备方案候选列表。
+
+        参数:
+            schemeType (Optional[str]): 方案类型，如 "robot"（真机采集）、"web_video"（视频采集）。
+            name (Optional[str]): 方案名称。
+            deviceTypeCode (Optional[str]): 设备类型编码。
+            pageNum (Optional[int]): 页码。
+            pageSize (Optional[int]): 每页数量。
+
+        返回:
+            APIResponse: 设备方案列表接口响应结果。
+        """
+        return self._request_data_manager(
+            method="GET",
+            path="/device-schemes",
+            params=_build_json_body(
+                schemeType=schemeType,
+                name=name,
+                deviceTypeCode=deviceTypeCode,
+                pageNum=pageNum,
+                pageSize=pageSize,
+            ),
+        )
+
     def create_device_type(
         self,
         name: str,
@@ -1728,6 +1762,7 @@ class ZataAPICaller(APICaller):
 
     def list_tasks(
         self,
+        collectMethod: Optional[str] = None,
         projectId: Optional[int] = None,
         title: Optional[str] = None,
         status: Optional[int] = None,
@@ -1737,6 +1772,7 @@ class ZataAPICaller(APICaller):
         """查询任务列表。
 
         参数:
+            collectMethod (Optional[str]): 采集方式，如 "web_video"、"robot"。
             projectId (Optional[int]): 项目 ID。
             title (Optional[str]): 任务标题。
             status (Optional[int]): 任务状态。
@@ -1750,6 +1786,7 @@ class ZataAPICaller(APICaller):
             method="GET",
             path="/tasks",
             params=_build_json_body(
+                collectMethod=collectMethod,
                 projectId=projectId,
                 title=title,
                 status=status,

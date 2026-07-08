@@ -90,11 +90,13 @@ def register_tools(mcp, caller) -> None:
         # 获取项目列表
         _safe_extract("projects", caller.list_projects, pageNum=1, pageSize=page_size)
         # 获取任务列表
-        _safe_extract("tasks", caller.list_tasks, pageNum=1, pageSize=page_size)
+        _safe_extract("tasks", caller.list_tasks, collectMethod=None, pageNum=1, pageSize=page_size)
         # 获取场景标签树
         _safe_extract("scene_labels_response", caller.list_scene_labels)
         # 获取设备类型
         _safe_extract("device_types", caller.list_device_types, pageNum=1, pageSize=page_size)
+        # 获取设备方案
+        _safe_extract("device_schemes", caller.list_device_schemes, pageNum=1, pageSize=page_size)
         # 获取 task 分类标签树（含任务用途、任务类型等）
         _safe_extract("task_label_tree", caller.get_label_tree, categoryCode="task")
 
@@ -133,6 +135,7 @@ def register_tools(mcp, caller) -> None:
             "tasks": result.get("tasks", []),
             "scene_labels": scene_labels,
             "device_types": result.get("device_types", []),
+            "device_schemes": result.get("device_schemes", []),
             "task_purposes": task_purposes,
             "task_type_options": task_type_options,
         }
