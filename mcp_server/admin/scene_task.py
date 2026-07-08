@@ -58,11 +58,109 @@ def _map_update_difficulty(difficulty: str) -> int | str:
 
 
 # ---------------------------------------------------------------------------
+# 可复用查询函数（供其他模块 import）
+# ---------------------------------------------------------------------------
+
+def _query_scene_task(
+    caller,
+    title: str,
+    collect_method: str,
+    project_id: Optional[int] = None,
+    page_size: int = 20,
+) -> dict[str, Any]:
+    """根据任务名称查询场景采集任务（返回 dict，供其他模块复用）。
+
+    ⚠️ collect_method 为必填参数，不可省略。
+    平台接口现在按采集方式隔离数据，必须指定 collect_method 才能查询。
+
+    支持模糊搜索，返回匹配任务的完整信息。
+
+    Args:
+        caller: ZataAPICaller 实例
+        title: 任务标题（支持模糊匹配）
+        collect_method: **必填**。采集方式，如 "web_video"、"robot" 等
+        project_id: 项目 ID（选填，缩小搜索范围）
+        page_size: 每页数量（默认 20，最大 200）
+
+    Returns:
+        dict，包含 success / found / count / task(s) 等字段
+    """
+    try:
+        response = caller.list_tasks(
+            collectMethod=collect_method,
+            title=title,
+            projectId=project_id,
+            pageNum=1,
+            pageSize=min(page_size, 200),
+        )
+
+        if response.status_code != 200:
+            return {
+                "success": False,
+                "error": f"查询任务列表失败: HTTP {response.status_code}",
+            }
+
+        # 从响应中提取任务列表
+        tasks = _extract_metadata_items(response.body) if response.body else []
+
+        if not tasks:
+            return {
+                "success": True,
+                "found": False,
+                "message": f"未找到标题包含「{title}」的场景任务",
+                "tasks": [],
+            }
+
+        # 如果只找到一条，获取其完整详情
+        if len(tasks) == 1:
+            task_id = tasks[0].get("id")
+            if task_id is not None:
+                try:
+                    detail_resp = caller.get_task(taskId=task_id)
+                    if detail_resp.status_code == 200:
+                        detail_body = detail_resp.body
+                        task_detail = _extract_task_data(detail_body)
+                        if task_detail:
+                            task_detail["_match_type"] = "exact"
+                            return {
+                                "success": True,
+                                "found": True,
+                                "count": 1,
+                                "task": task_detail,
+                            }
+                except Exception:
+                    pass  # 详情获取失败时回退到列表数据
+
+            # 拿不到详情时返回列表中的信息
+            return {
+                "success": True,
+                "found": True,
+                "count": 1,
+                "task": tasks[0],
+            }
+
+        # 多条匹配：返回列表供用户选择
+        return {
+            "success": True,
+            "found": True,
+            "count": len(tasks),
+            "tasks": tasks,
+            "message": f"找到 {len(tasks)} 个匹配的任务，请用户指定具体任务 ID",
+        }
+
+    except Exception as e:
+        return {"success": False, "error": f"查询任务异常: {e}"}
+
+
+# ---------------------------------------------------------------------------
 # 工具注册
 # ---------------------------------------------------------------------------
 
 def register_tools(mcp, caller) -> None:
     """注册场景任务相关工具到 MCP 应用。"""
+
+    # 捕获模块级函数引用（避免与同名 MCP tool 冲突）
+    _get_scene_task = _query_scene_task
 
     @mcp.tool()
     def create_scene_task(
@@ -201,96 +299,10 @@ def register_tools(mcp, caller) -> None:
             project_id: 项目 ID（选填，缩小搜索范围）
             page_size: 每页数量（默认 20，最大 200）
         """
-        try:
-            response = caller.list_tasks(
-                collectMethod=collect_method,
-                title=title,
-                projectId=project_id,
-                pageNum=1,
-                pageSize=min(page_size, 200),
-            )
-
-            if response.status_code != 200:
-                return json.dumps(
-                    {
-                        "success": False,
-                        "error": f"查询任务列表失败: HTTP {response.status_code}",
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-
-            # 从响应中提取任务列表
-            tasks = _extract_metadata_items(response.body) if response.body else []
-
-            if not tasks:
-                return json.dumps(
-                    {
-                        "success": True,
-                        "found": False,
-                        "message": f"未找到标题包含「{title}」的场景任务",
-                        "tasks": [],
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-
-            # 如果只找到一条，获取其完整详情
-            if len(tasks) == 1:
-                task_id = tasks[0].get("id")
-                if task_id is not None:
-                    try:
-                        detail_resp = caller.get_task(taskId=task_id)
-                        if detail_resp.status_code == 200:
-                            detail_body = detail_resp.body
-                            # 提取完整任务数据
-                            task_detail = _extract_task_data(detail_body)
-                            if task_detail:
-                                task_detail["_match_type"] = "exact"
-                                return json.dumps(
-                                    {
-                                        "success": True,
-                                        "found": True,
-                                        "count": 1,
-                                        "task": task_detail,
-                                    },
-                                    ensure_ascii=False,
-                                    indent=2,
-                                )
-                    except Exception:
-                        pass  # 详情获取失败时回退到列表数据
-
-                # 拿不到详情时返回列表中的信息
-                return json.dumps(
-                    {
-                        "success": True,
-                        "found": True,
-                        "count": 1,
-                        "task": tasks[0],
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-
-            # 多条匹配：返回列表供用户选择
-            return json.dumps(
-                {
-                    "success": True,
-                    "found": True,
-                    "count": len(tasks),
-                    "tasks": tasks,
-                    "message": f"找到 {len(tasks)} 个匹配的任务，请用户指定具体任务 ID",
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
-
-        except Exception as e:
-            return json.dumps(
-                {"success": False, "error": f"查询任务异常: {e}"},
-                ensure_ascii=False,
-                indent=2,
-            )
+        result = _get_scene_task(
+            caller, title, collect_method, project_id, page_size,
+        )
+        return json.dumps(result, ensure_ascii=False, indent=2)
 
     # -------------------------------------------------------------------
     # 工具: update_scene_task
