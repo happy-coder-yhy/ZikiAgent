@@ -302,3 +302,103 @@ def register_tools(mcp, caller) -> None:
                 {"success": False, "error": f"查询异常: {e}"},
                 ensure_ascii=False, indent=2,
             )
+
+    @mcp.tool()
+    def search_user(name: str) -> str:
+        """根据用户名或显示名称搜索平台用户，获取用户 ID。
+
+        用于将采集员或审核员的用户名映射为 userId，
+        以便在 create_scene_task / update_scene_task 中传入 collector_ids / reviewer_ids。
+
+        同时搜索 username（登录名）和 displayName（显示名称），
+        支持模糊匹配。例如搜索"小明"可匹配到 displayName 为"采集员小明"的用户。
+
+        Args:
+            name: 用户名或显示名称（支持模糊匹配），如 "张三"、"collector2"、"小明"
+        """
+        try:
+            # 优先使用任务分配专用的用户查询接口
+            resp = caller.list_users_by_name(name=name)
+            api_users: list[dict] = []
+
+            if resp.status_code == 200:
+                api_users = _extract_metadata_items(resp.body) if resp.body else []
+
+            # 如果 API 搜索有结果，直接返回
+            if api_users:
+                return json.dumps(
+                    {
+                        "success": True,
+                        "found": True,
+                        "count": len(api_users),
+                        "users": [
+                            {"id": u.get("id"), "name": u.get("name"),
+                             "username": u.get("name"), "displayName": u.get("displayName")}
+                            for u in api_users if isinstance(u, dict)
+                        ],
+                    },
+                    ensure_ascii=False, indent=2,
+                )
+
+            # API 搜索无结果（可能用户用的是 displayName 而非 username）——
+            # 拉取全量用户，在客户端做 name + displayName 双重模糊匹配
+            fallback_resp = caller.list_users(pageNum=1, pageSize=200)
+            if fallback_resp.status_code != 200:
+                return json.dumps(
+                    {"success": False, "error": f"查询用户列表失败: HTTP {fallback_resp.status_code}"},
+                    ensure_ascii=False, indent=2,
+                )
+
+            all_users = _extract_metadata_items(fallback_resp.body) if fallback_resp.body else []
+
+            if not all_users:
+                return json.dumps(
+                    {
+                        "success": True,
+                        "found": False,
+                        "message": f"平台暂无任何用户",
+                        "users": [],
+                    },
+                    ensure_ascii=False, indent=2,
+                )
+
+            # 模糊匹配：name（username）或 displayName 包含搜索词（不区分大小写）
+            query_lower = name.strip().lower()
+            matched: list[dict] = []
+            for u in all_users:
+                if not isinstance(u, dict):
+                    continue
+                uname = str(u.get("name") or "").lower()
+                dname = str(u.get("displayName") or "").lower()
+                if query_lower in uname or query_lower in dname:
+                    matched.append(u)
+
+            if not matched:
+                return json.dumps(
+                    {
+                        "success": True,
+                        "found": False,
+                        "message": f"未找到 name 或 displayName 包含「{name}」的用户",
+                        "users": [],
+                    },
+                    ensure_ascii=False, indent=2,
+                )
+
+            return json.dumps(
+                {
+                    "success": True,
+                    "found": True,
+                    "count": len(matched),
+                    "users": [
+                        {"id": u.get("id"), "name": u.get("name"),
+                         "username": u.get("name"), "displayName": u.get("displayName")}
+                        for u in matched
+                    ],
+                },
+                ensure_ascii=False, indent=2,
+            )
+        except Exception as e:
+            return json.dumps(
+                {"success": False, "error": f"查询用户异常: {e}"},
+                ensure_ascii=False, indent=2,
+            )

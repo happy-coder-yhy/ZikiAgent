@@ -37,6 +37,7 @@ triggers:
   - user says "查询作业 42 的详细信息" / "query job xxx details"
   - user asks "这个作业是什么情况" referring to a specific job
   - user wants to see a specific job's full info (collect status, review status, progress, items)
+  - user refers to a job by its description text (e.g., "测试作业1"), NOT a numeric ID — see §"查找作业的流程（通过描述而非 ID）"
   # 任务作业详情
   - user asks "帮我看看xx任务的作业详情" / "show me all jobs under task xxx"
   - user says "xx任务下有哪些作业" / "list jobs under task xxx"
@@ -413,7 +414,12 @@ Required Params:
 
 2. **获取作业 ID：**
    - **直接方式：** 如果用户直接给了作业 ID（如"看看作业 101"），直接使用
-   - **间接方式：** 如果用户在查看某个任务的详情后说"看看这个任务的作业"，可先告知用户当前工具暂不支持按任务列出所有作业 ID，需提供具体作业 ID
+   - **通过名称/描述查找：** 如果用户以描述文本（如"测试作业1"）而非 ID 来指代作业：
+     1. 先查看 `job_summary` 了解哪些任务下有作业
+     2. 从有作业的任务中，选择与描述文本语义匹配的任务，调用 `task_job_details(task_id=<id>)` 获取其所有作业
+     3. 在返回的 `jobs` 数组中，匹配 `description` 字段与用户提供的文本（注意：作业的 `name` 字段可能为空，用户说的"名称"实际可能是 `description` 值）
+     4. 获取匹配作业的 `id`，然后调用 `job_detail(job_id=<id>)`
+   - **推断式查找：** 如果用户说"查询xxx任务的yyy作业"（如"居家整理任务下的测试作业1"），任务名 + 作业描述都有了，先在 `task_summary(title="xxx")` 确认任务名和 task_id，再调用 `task_job_details(task_id=...)` 查找匹配描述的作业
 
 3. **获取作业详情：**
    - 调用 `job_detail(job_id=<id>)`
@@ -449,10 +455,12 @@ Required Params:
 | 用户提问 | AI 执行步骤 | 回复要点 |
 |----------|------------|----------|
 | "帮我看看作业 101 的详情" | `job_detail(job_id=101)` | 展示名称、所属任务、采集状态、审核状态、人员配置、进度等 |
+| "查询测试作业1的详细信息" | 1. `job_summary` → 知悉哪些任务有作业<br>2. `task_job_details(task_id=261)` → 在"居家整理"下找到 `description: "测试作业1", id: 129`<br>3. `job_detail(job_id=129)` | 展示作业详情 |
 | "这个作业是什么情况？"（上下文已知 job_id） | `job_detail(job_id=当前作业ID)` | 完整汇报所有非空字段 |
 
 ### 注意事项
 
+- 用户说的"作业名"可能是 `name` 字段，也可能是 `description` 字段。当 `name` 为空字符串时，用户通常会用 `description` 值来指代该作业（如"测试作业1"）。**始终优先匹配 `description` 字段**，因为平台上 `name` 常常为空，而 `description` 是作业创建时用户必填的内容。
 - `job_detail` 查询的是**单个作业**的完整信息，与 `job_summary`（平台级聚合统计）不同
 - 必须传入有效的作业 ID，可通过上下文或用户直接提供获取
 

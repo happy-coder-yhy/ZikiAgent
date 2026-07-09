@@ -18,6 +18,8 @@ triggers:
   - user mentions a scene and project together for task creation
   - user says "发布场景任务" / "publish a scene task"
   - user wants to release or publish a collection task
+  - user wants to assign a collector or reviewer to a task
+  - user asks "查找用户" / "search user" / "张三的ID是什么"
 ---
 
 # Scene Task / 场景采集任务
@@ -33,6 +35,7 @@ triggers:
 | **修改** | `update_scene_task` | 修改任务字段值。**仅限未发布（status=1）的任务** — 已发布（status=2）的任务**只能修改 title、description、remark**，若修改其他字段则直接拒绝，不要尝试修改 |
 | **发布** | `publish_scene_task` | 将任务发布上线（status → 2），发布后采集员可领取 |
 | **查场景 ID** | `get_scene` | 快速查询场景 ID，1 次 API 调用，支持主场景/子场景 |
+| **查用户 ID** | `search_user` | 根据用户名搜索用户，返回用户 ID。用于指定采集员/审核员 |
 
 ---
 
@@ -46,6 +49,7 @@ triggers:
 |----------|-----------|---------|
 | 任务用途 ID（如"仿真评测"） | `get_task_purpose(name="仿真评测")` | **1 次** |
 | 场景 ID（主场景如"居家"，子场景如"整理"） | `get_scene(name="居家")` | **1 次** |
+| 用户 ID（采集员/审核员用户名） | `search_user(name="张三")` | **1 次** |
 | 项目列表 | `get_platform_config` → `_project_summary` | 5 次 |
 | 场景标签、设备类型等全量信息 | `get_platform_config` | 5 次 |
 
@@ -57,6 +61,8 @@ triggers:
 | `device_scheme_id` | `get_platform_config` → `device_schemes` | 设备方案 ID |
 | `task_type` | 直接由用户指定 | "短程" 或 "长程" |
 | `difficulty` | 直接由用户指定 | "简单"、"普通" 或 "困难" |
+| `collector_ids` | `search_user(name="...")` | 采集员用户 ID 列表，先用 search_user 查用户名得到 userId |
+| `reviewer_ids` | `search_user(name="...")` | 审核员用户 ID 列表，先用 search_user 查用户名得到 userId |
 
 ### 调用方式
 
@@ -81,6 +87,8 @@ Optional Params:
   - recognition_enabled: bool     — 是否启用 AI 识别
   - video_quality: int            — 视频画质
   - remark: string                — 任务备注
+  - collector_ids: string[]       — 采集员用户 ID 列表（选填）。先用 search_user 查用户名得到 userId
+  - reviewer_ids: string[]        — 审核员用户 ID 列表（选填）。先用 search_user 查用户名得到 userId
 ```
 
 ### 创建工作流
@@ -95,8 +103,9 @@ Optional Params:
    - 用户未提供 task_purpose → 展示可用用途列表，询问用户
    - 用户未提供 difficulty → 询问"简单、普通还是困难？"
    - 用户未提供 device_scheme → 展示可用设备方案列表，询问用户
-4. 组装参数后调用 `create_scene_task`
-5. 返回创建结果给用户
+4. **若用户指定了采集员或审核员**：调用 `search_user(name="用户名")` 查询其 userId，填入 `collector_ids` 或 `reviewer_ids`
+5. 组装参数后调用 `create_scene_task`
+6. 返回创建结果给用户
 
 ---
 
@@ -126,6 +135,8 @@ Optional Params（至少传一个）:
   - recognition_enabled: bool — 是否启用 AI 识别
   - video_quality: int      — 新的视频画质
   - remark: string          — 新的任务备注
+  - collector_ids: string[] — 新的采集员用户 ID 列表（选填）。先用 search_user 查到 userId
+  - reviewer_ids: string[]  — 新的审核员用户 ID 列表（选填）。先用 search_user 查到 userId
 ```
 
 ### 查询工作流
@@ -216,7 +227,8 @@ Required Params:
 ## 四、通用注意
 
 - **`get_platform_config` 可能不返回 `device_schemes`**：当前平台版本调用 `get_platform_config` 后，输出中没有 `device_schemes` 字段，只有 `device_types`。如果需要传 `device_scheme_id`，尝试使用对应的 `device_types` ID（如"互联网视频采集"对应 device_type_id=9，device_scheme_id 也用 9）。如果仍然 404，可能是 MCP 服务器中的 API 端点路径问题——参考 `scene-task-creator` skill 中的修复记录。
-- **所有 ID 必须从 `get_platform_config` 获取**，不要硬编码或猜测
+- **采集员/审核员 ID**：通过 `search_user(name="用户名")` 查找用户获取 userId，支持模糊匹配。不要在未查找的情况下硬编码或猜测用户 ID
+- **所有配置 ID 必须从 `get_platform_config` 获取**，不要硬编码或猜测
 - task_type 只接受 "短程" 或 "长程"，其他值会报错
 - difficulty 只接受 "简单"、"普通" 或 "困难"，其他值会报错
 - 创建成功后返回的 data 中包含新任务的 id

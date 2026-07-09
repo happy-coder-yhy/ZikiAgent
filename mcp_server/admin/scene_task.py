@@ -5,7 +5,11 @@ from __future__ import annotations
 import json
 from typing import Any, Optional
 
-from ApiCaller.modules.api_caller import _build_json_body, _extract_metadata_items
+from ApiCaller.modules.api_caller import (
+    TaskUserReq,
+    _build_json_body,
+    _extract_metadata_items,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +185,8 @@ def register_tools(mcp, caller) -> None:
         recognition_enabled: Optional[bool] = None,
         video_quality: Optional[int] = None,
         remark: Optional[str] = None,
+        collector_ids: Optional[list[str]] = None,
+        reviewer_ids: Optional[list[str]] = None,
     ) -> str:
         """创建场景采集任务。
 
@@ -212,6 +218,8 @@ def register_tools(mcp, caller) -> None:
             recognition_enabled: 是否启用 AI 识别（可选）
             video_quality: 视频画质设置（可选）
             remark: 任务备注（可选）
+            collector_ids: 采集员用户 ID 列表（可选）。先用 search_user 根据用户名查到 userId
+            reviewer_ids: 审核员用户 ID 列表（可选）。先用 search_user 根据用户名查到 userId
         """
         # 校验并映射 task_type
         task_type_val = _TASK_TYPE_MAP.get(task_type)
@@ -238,6 +246,16 @@ def register_tools(mcp, caller) -> None:
             )
 
         try:
+            # 将用户 ID 列表转为 TaskUserReq 对象
+            _collectors = (
+                [TaskUserReq(userId=uid) for uid in collector_ids]
+                if collector_ids else None
+            )
+            _auditors = (
+                [TaskUserReq(userId=uid) for uid in reviewer_ids]
+                if reviewer_ids else None
+            )
+
             response = caller.create_scene_task(
                 projectId=project_id,
                 sceneId=scene_id,
@@ -256,6 +274,8 @@ def register_tools(mcp, caller) -> None:
                 recognitionEnabled=recognition_enabled,
                 videoQuality=video_quality,
                 remark=remark,
+                collectors=_collectors,
+                auditors=_auditors,
             )
 
             return json.dumps(
@@ -328,6 +348,8 @@ def register_tools(mcp, caller) -> None:
         recognition_enabled: Optional[bool] = None,
         video_quality: Optional[int] = None,
         remark: Optional[str] = None,
+        collector_ids: Optional[list[str]] = None,
+        reviewer_ids: Optional[list[str]] = None,
     ) -> str:
         """修改场景任务。
 
@@ -354,6 +376,8 @@ def register_tools(mcp, caller) -> None:
             recognition_enabled: 是否启用 AI 识别（选填）
             video_quality: 新的视频画质设置（选填）
             remark: 新的任务备注（选填）
+            collector_ids: 新的采集员用户 ID 列表（选填）。先用 search_user 查到 userId
+            reviewer_ids: 新的审核员用户 ID 列表（选填）。先用 search_user 查到 userId
         """
         # 检查是否至少传了一个要修改的字段
         update_fields = {
@@ -375,6 +399,8 @@ def register_tools(mcp, caller) -> None:
                 "recognition_enabled": recognition_enabled,
                 "video_quality": video_quality,
                 "remark": remark,
+                "collector_ids": collector_ids,
+                "reviewer_ids": reviewer_ids,
             }.items() if v is not None
         }
         if not update_fields:
@@ -476,6 +502,8 @@ def register_tools(mcp, caller) -> None:
         cur_recognition = current.get("recognitionEnabled")
         cur_video_quality = current.get("videoQuality")
         cur_remark = current.get("remark")
+        cur_collectors = current.get("collectors")
+        cur_auditors = current.get("auditors")
 
         # 当前 difficulty 可能是 int 或 str，统一处理
         cur_difficulty_raw = current.get("difficulty")
@@ -496,6 +524,16 @@ def register_tools(mcp, caller) -> None:
             cur_task_type = None
 
         try:
+            # 处理采集员/审核员：优先用新值，否则保留当前
+            _collectors = (
+                [TaskUserReq(userId=uid) for uid in collector_ids]
+                if collector_ids is not None else cur_collectors
+            )
+            _auditors = (
+                [TaskUserReq(userId=uid) for uid in reviewer_ids]
+                if reviewer_ids is not None else cur_auditors
+            )
+
             # 使用 _request_data_manager 直接构建请求体，带上 taskCategory="scene"
             # （caller.update_task_keep_jobs 没有 taskCategory 参数，会报错）
             response = caller._request_data_manager(
@@ -521,6 +559,8 @@ def register_tools(mcp, caller) -> None:
                     recognitionEnabled=recognition_enabled if recognition_enabled is not None else cur_recognition,
                     videoQuality=video_quality if video_quality is not None else cur_video_quality,
                     remark=remark if remark is not None else cur_remark,
+                    collectors=_collectors,
+                    auditors=_auditors,
                 ),
             )
 
