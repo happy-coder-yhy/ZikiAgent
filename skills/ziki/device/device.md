@@ -1,10 +1,11 @@
 ---
 name: device
 description: >
-  Query device summary and details on the Zata platform via MCP tools.
-  Use `device_summary` for an overview of all devices, and `device_detail`
-  to look up detailed information for a specific device by name or code.
-tags: [zata, ziki, device, device-summary, device-detail]
+  Query device summary, details, and manage device bindings on the Zata platform
+  via MCP tools. Use `device_summary` for overview, `device_detail` for specific
+  device info, `bind_collector_or_job` to bind a collector/job to a device, and
+  `change_bind` to rebind.
+tags: [zata, ziki, device, device-summary, device-detail, device-bind]
 triggers:
   - user says "查询设备概要" / "query device summary"
   - user says "查看设备" / "check devices"
@@ -16,18 +17,25 @@ triggers:
   - user mentions a device name and wants to see its details
   - user says "查一下XX设备" / "look up device XX"
   - user wants to look up a device by its code
+  - user says "绑定" + "设备" / "bind" + "device"
+  - user wants to assign a collector or job to a device
+  - user says "给XX设备绑定" / "为XX设备分配"
+  - user says "重新绑定" / "rebind" / "change binding"
+  - user wants to replace a device's collector or job
 ---
 
 # Device / 设备管理
 
 ## 用途
 
-查询 Zata 平台上设备的**概要统计**和**详细信息**。
+查询 Zata 平台上设备的**概要统计**、**详细信息**，以及**管理设备绑定**（采集员/作业）。
 
 | 操作 | MCP 工具 | 说明 |
 |------|----------|------|
 | **设备概要** | `device_summary` | 查询设备总数、在线/离线、真机/视频、各型号数量 |
 | **设备详情** | `device_detail` | 按名称或编码查询单台设备的完整信息 |
+| **绑定采集员/作业** | `bind_collector_or_job` | 将采集员或作业绑定到设备 |
+| **重新绑定** | `change_bind` | 先解绑当前采集员/作业，再绑定新的 |
 
 ---
 
@@ -57,24 +65,6 @@ Required Params: 无
 2. 调用 `device_summary`（无需任何参数）
 3. 向用户展示统计结果
 
-### 示例输出
-
-```json
-{
-  "success": true,
-  "total": 15,
-  "online": 10,
-  "offline": 5,
-  "real_device": 3,
-  "video_device": 12,
-  "by_model": {
-    "dunjia_device001": 5,
-    "iPhone 15": 3,
-    "摄像头设备A": 7
-  }
-}
-```
-
 ---
 
 ## 二、设备详情查询
@@ -88,88 +78,116 @@ Params（二选一）:
   - device_code: string  — 设备编码，直接查询详情
 ```
 
-### 查询模式
-
-| 模式 | 参数 | 行为 |
-|------|------|------|
-| **按名称搜索** | `name="agentTest"` | 先搜 deviceName → 无结果则搜 deviceCode |
-| **按编码直查** | `device_code="dunjia_device001"` | 跳过搜索，直接返回该设备完整详情 |
-
-### 返回字段
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `success` | bool | 是否成功 |
-| `found` | bool | 是否找到匹配设备 |
-| `device` | object | 设备完整信息（单台匹配时返回） |
-| `devices` | array | 匹配设备列表（多台匹配时返回摘要） |
-| `multiple` | bool | 是否有多个同名设备 |
-| `count` | int | 匹配设备数量 |
-
-`device` 对象包含的字段：`id`, `deviceCode`, `deviceName`, `deviceTypeId`, `deviceTypeName`, `category`, `deviceBodyId`, `deviceBodyName`, `deviceEndId`, `deviceEndName`, `deviceCameraId`, `deviceCameraName`, `modules`, `ip`, `cameraConfig`, `jobId`, `status`, `lastOnlineAt`, `createdAt`, `updatedAt` 等。
-
 ### 查询工作流
 
 1. 用户提出查看某设备详情（如"帮我查一下 agentTest 设备的详细信息"）
 2. 调用 `device_detail(name="agentTest")` 搜索设备
 3. 根据返回结果处理：
    - **未找到（found=false）**：告知用户该设备不存在
-   - **唯一匹配（multiple 不存在或为 false）**：展示 `device` 中的完整信息
-   - **多个匹配（multiple=true）**：列出 `devices` 中所有设备，让用户选择具体要查哪个
-4. 若多个匹配，用户选定后，调用 `device_detail(device_code="<deviceCode>")` 获取详情
+   - **唯一匹配**：展示 `device` 中的完整信息
+   - **多个匹配（multiple=true）**：列出所有匹配设备，让用户选择后调用 `device_detail(device_code="...")`
 
-### 多设备匹配处理
+---
 
-当名称匹配到多台设备时，返回示例：
+## 三、绑定采集员或作业
 
-```json
-{
-  "success": true,
-  "found": true,
-  "multiple": true,
-  "count": 3,
-  "message": "找到 3 台匹配「camera」的设备，请根据 deviceCode 指定要查询的设备：device_detail(device_code=\"<deviceCode>\")",
-  "devices": [
-    {
-      "deviceCode": "cam_001",
-      "deviceName": "摄像头A",
-      "deviceTypeName": "hikvision_ds2",
-      "category": "video",
-      "status": "在线"
-    },
-    {
-      "deviceCode": "cam_002",
-      "deviceName": "摄像头B",
-      "deviceTypeName": "hikvision_ds2",
-      "category": "video",
-      "status": "离线"
-    }
-  ]
-}
+### 调用方式
+
+```
+Tool: bind_collector_or_job
+Required Params:
+  - device_code: string   — 设备编码（必填），如 "dunjia_device001"
+Optional Params（至少提供一个）:
+  - collector_id: string  — 采集员用户 ID，通过 search_user(name="用户名") 获取
+  - job_id: string        — 作业 ID，通过 job_summary / job_detail 获取
 ```
 
-**处理方式**：将设备列表展示给用户，让用户根据 deviceCode 或 deviceName 选择具体设备，然后调用 `device_detail(device_code="<选定设备的deviceCode>")` 获取完整详情。
+### 返回字段
 
-### 唯一匹配时的示例输出
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `success` | bool | 是否成功 |
+| `message` | string | 操作结果描述 |
+| `device_code` | string | 设备编码 |
+| `bound.collector_id` | string\|null | 绑定的采集员 ID |
+| `bound.job_id` | string\|null | 绑定的作业 ID |
 
-```json
-{
-  "success": true,
-  "found": true,
-  "device": {
-    "id": 6,
-    "deviceCode": "dunjia_device001",
-    "deviceName": "agentTest",
-    "deviceTypeName": "dunjia_device001",
-    "category": "video",
-    "status": 0,
-    "lastOnlineAt": "2026-07-03 10:34:23",
-    "createdAt": "2026-07-03 18:32:21",
-    "updatedAt": "2026-07-09 17:07:31",
-    ...
-  }
-}
+### 绑定工作流
+
+1. 用户表达绑定意图（如"给 agentTest 设备绑定小明采集员"）
+2. **若用户提到采集员用户名**：先调用 `search_user(name="小明")` 查询 userId
+3. **若用户提到作业描述**：先调用 `job_summary` 或 `job_detail` 查询 jobId
+4. 确认 device_code（若用户只给了设备名，先调 `device_detail(name="...")` 获取 deviceCode）
+5. 调用 `bind_collector_or_job(device_code="...", collector_id="...", job_id="...")`
+6. 向用户确认绑定结果
+
+> **Merge 行为**：未传 `collector_id` 或 `job_id` 时，工具会自动保留设备现有的绑定值，不会覆盖。
+> 例如：设备已有采集员 A，调用 `bind_collector_or_job(device_code="x", job_id="2")` 仅传 job_id，
+> 工具读取到设备当前 collectorId=A，最终将同时绑定采集员 A + 作业 2。
+
+### 示例
+
+用户："给 dunjia_device001 绑定采集员小明"
+→ 先调 `search_user(name="小明")` 得到 userId: `6e1465a8-...`
+→ 再调 `bind_collector_or_job(device_code="dunjia_device001", collector_id="6e1465a8-...")`
+→ 返回 `{"success": true, "message": "已为设备「dunjia_device001」绑定采集员 6e1465a8-..."}`
+
+用户（后续）："再绑定作业 JOB-001"
+→ 直接调 `bind_collector_or_job(device_code="dunjia_device001", job_id="JOB-001")`
+→ 工具自动保留采集员，返回 `{"success": true, "message": "已为设备「dunjia_device001」绑定采集员 6e1465a8-...、作业 JOB-001"}`
+
+---
+
+## 四、重新绑定（先解绑再绑定）
+
+### 调用方式
+
 ```
+Tool: change_bind
+Required Params:
+  - device_code: string   — 设备编码（必填）
+Optional Params（至少提供一个）:
+  - collector_id: string  — 新采集员用户 ID
+  - job_id: string        — 新作业 ID
+```
+
+### 返回字段
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `success` | bool | 是否成功 |
+| `message` | string | 操作结果描述（含解绑和绑定信息） |
+| `device_code` | string | 设备编码 |
+| `unbound.collector_id` | string\|null | 被解绑的采集员 ID |
+| `unbound.job_id` | string\|null | 被解绑的作业 ID |
+| `bound.collector_id` | string\|null | 新绑定的采集员 ID |
+| `bound.job_id` | string\|null | 新绑定的作业 ID |
+
+### 重新绑定工作流
+
+1. 用户表达重新绑定意图（如"把 agentTest 设备的采集员换成小王"）
+2. **查询新采集员/作业 ID**：通过 `search_user` 或 `job_summary` / `job_detail`
+3. 确认 device_code
+4. 调用 `change_bind(device_code="...", collector_id="新ID", job_id="新ID")`
+   - 工具内部自动执行：解绑当前 → 绑定新值
+5. 向用户展示解绑和绑定结果
+
+> **Merge 行为**：只解绑并替换用户明确提供的字段。未传的字段保留现有值。
+> 例如：设备已有采集员 A + 作业 1，调用 `change_bind(device_code="x", collector_id="B")` 仅更换采集员，
+> 工具解绑采集员 A → 绑定采集员 B，作业 1 保持不变。
+
+### 与 bind_collector_or_job 的区别
+
+| 场景 | 用哪个工具 |
+|------|-----------|
+| 设备当前**没有**绑定采集员/作业 | `bind_collector_or_job` |
+| 设备当前**已有**绑定，需要**换人/换作业** | `change_bind` |
+| 不确定设备当前状态 | 先用 `device_detail` 查看，再决定 |
+
+`change_bind` 会先解绑旧的再绑定新的，确保绑定切换干净。`bind_collector_or_job` 直接绑定新值。
+
+> **简便用法**：两个工具都支持 merge 行为。如果分步绑定（先绑采集员、再绑作业），
+> 直接用 `bind_collector_or_job` 分别调用即可，无需特意用 `change_bind`。
 
 ---
 
@@ -180,3 +198,6 @@ Params（二选一）:
 - 设备状态：`1` = 在线，`0`（及其他值）= 离线
 - 设备类别：`robot` = 真机采集设备，`video` = 视频采集设备
 - 型号统计优先使用 `deviceBodyName`，若为空则回退到 `deviceTypeName`
+- **采集员 ID 必须通过 `search_user(name="用户名")` 查询获取**，不要硬编码或猜测
+- **作业 ID 通过 `job_summary` 或 `job_detail` 查询获取**
+- **device_code 可通过 `device_detail(name="设备名")` 查询获取**

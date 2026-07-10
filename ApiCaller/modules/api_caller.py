@@ -1716,6 +1716,50 @@ class ZataAPICaller(APICaller):
             json_body=_build_json_body(deviceName=deviceName, modules=modules),
         )
 
+    def bind_device(
+        self,
+        deviceId: int,
+        collectorId: Optional[str] = None,
+        jobId: Optional[str] = None,
+    ) -> APIResponse:
+        """绑定采集员或作业到设备。
+
+        参数:
+            deviceId (int): 设备 ID。
+            collectorId (Optional[str]): 采集员用户 ID。
+            jobId (Optional[str]): 作业 ID（数字或数字字符串）。
+
+        返回:
+            APIResponse: 绑定接口响应结果。
+        """
+        return self._request_data_manager(
+            method="PUT",
+            path=f"/devices/{deviceId}/binding",
+            json_body=_build_json_body(collectorId=collectorId, jobId=jobId),
+        )
+
+    def unbind_device(
+        self,
+        deviceId: int,
+        collectorId: Optional[str] = None,
+        jobId: Optional[str] = None,
+    ) -> APIResponse:
+        """解绑设备的采集员或作业。
+
+        参数:
+            deviceId (int): 设备 ID。
+            collectorId (Optional[str]): 要解绑的采集员用户 ID（为空则解绑当前采集员）。
+            jobId (Optional[str]): 要解绑的作业 ID（为空则解绑当前作业）。
+
+        返回:
+            APIResponse: 解绑接口响应结果。
+        """
+        return self._request_data_manager(
+            method="PUT",
+            path=f"/devices/{deviceId}/binding/unbind",
+            json_body=_build_json_body(collectorId=collectorId, jobId=jobId),
+        )
+
     def delete_device(self, deviceId: int) -> APIResponse:
         """删除设备。
 

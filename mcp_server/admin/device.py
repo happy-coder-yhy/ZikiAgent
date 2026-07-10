@@ -221,4 +221,222 @@ def register_tools(mcp, caller) -> None:
                 {"success": False, "error": f"查询设备异常: {e}"},
                 ensure_ascii=False, indent=2,
             )
+    
+    @mcp.tool()
+    def bind_collector_or_job(
+        device_code: str,
+        collector_id: str = "",
+        job_id: str = "",
+    ) -> str:
+        """绑定采集员或作业到设备。
 
+        未传 collector_id / job_id 时自动保留设备现有的绑定值，
+        因此分多次分别绑定采集员和作业不会互相覆盖。
+
+        采集员 ID 请通过 search_user(name="用户名") 查询获取。
+        作业 ID 请通过 job_summary 或 job_detail 查询获取。
+
+        Args:
+            device_code: 设备编码（必填），如 "dunjia_device001"
+            collector_id: 采集员用户 ID 字符串，与 job_id 至少提供一个
+            job_id: 作业 ID 字符串，与 collector_id 至少提供一个
+        """
+        if not device_code:
+            return json.dumps(
+                {"success": False, "error": "请提供设备编码（device_code）"},
+                ensure_ascii=False, indent=2,
+            )
+        if not collector_id and not job_id:
+            return json.dumps(
+                {"success": False, "error": "请提供采集员 ID（collector_id）或作业 ID（job_id）"},
+                ensure_ascii=False, indent=2,
+            )
+
+        try:
+            # 1. 通过 device_code 查询设备
+            resp = caller.get_device_by_code(deviceCode=device_code)
+            if resp.status_code != 200:
+                return json.dumps(
+                    {"success": False, "error": f"查询设备失败: HTTP {resp.status_code}"},
+                    ensure_ascii=False, indent=2,
+                )
+            body = resp.body
+            device = (body.get("metadata") or body) if isinstance(body, dict) else {}
+            if not device:
+                return json.dumps(
+                    {"success": False, "error": f"未找到设备编码为「{device_code}」的设备"},
+                    ensure_ascii=False, indent=2,
+                )
+            device_id = device.get("id")
+            if not device_id:
+                return json.dumps(
+                    {"success": False, "error": "设备数据中缺少 id 字段"},
+                    ensure_ascii=False, indent=2,
+                )
+
+            # 2. 读取当前绑定状态，未传的字段保留现有值，防止覆盖丢失
+            current_collector = device.get("collectorId")
+            current_job = device.get("jobId")
+
+            final_collector = collector_id if collector_id else (current_collector or None)
+            final_job = job_id if job_id else (str(current_job) if current_job else None)
+
+            # 3. 调用设备绑定接口
+            resp = caller.bind_device(
+                deviceId=device_id,
+                collectorId=final_collector,
+                jobId=final_job,
+            )
+            if resp.status_code != 200:
+                return json.dumps(
+                    {"success": False, "error": f"绑定失败: HTTP {resp.status_code}"},
+                    ensure_ascii=False, indent=2,
+                )
+
+            bound_items = []
+            if final_collector:
+                bound_items.append(f"采集员 {final_collector}")
+            if final_job:
+                bound_items.append(f"作业 {final_job}")
+
+            return json.dumps(
+                {
+                    "success": True,
+                    "message": f"已为设备「{device_code}」绑定{'、'.join(bound_items)}",
+                    "device_code": device_code,
+                    "bound": {
+                        "collector_id": final_collector,
+                        "job_id": final_job,
+                    },
+                },
+                ensure_ascii=False, indent=2,
+            )
+
+        except Exception as e:
+            return json.dumps(
+                {"success": False, "error": f"绑定异常: {e}"},
+                ensure_ascii=False, indent=2,
+            )
+
+    @mcp.tool()
+    def change_bind(
+        device_code: str,
+        collector_id: str = "",
+        job_id: str = "",
+    ) -> str:
+        """重新绑定设备采集员或作业。先解绑当前的，再绑定新的。
+
+        只解绑并替换用户明确提供的字段，未传的字段保留现有值，
+        因此仅更换采集员时不会影响已绑定的作业（反之亦然）。
+
+        采集员 ID 请通过 search_user(name="用户名") 查询获取。
+        作业 ID 请通过 job_summary 或 job_detail 查询获取。
+
+        Args:
+            device_code: 设备编码（必填），如 "dunjia_device001"
+            collector_id: 新采集员用户 ID 字符串，与 job_id 至少提供一个
+            job_id: 新作业 ID 字符串，与 collector_id 至少提供一个
+        """
+        if not device_code:
+            return json.dumps(
+                {"success": False, "error": "请提供设备编码（device_code）"},
+                ensure_ascii=False, indent=2,
+            )
+        if not collector_id and not job_id:
+            return json.dumps(
+                {"success": False, "error": "请提供采集员 ID（collector_id）或作业 ID（job_id）"},
+                ensure_ascii=False, indent=2,
+            )
+
+        try:
+            # 1. 查询设备当前状态
+            resp = caller.get_device_by_code(deviceCode=device_code)
+            if resp.status_code != 200:
+                return json.dumps(
+                    {"success": False, "error": f"查询设备失败: HTTP {resp.status_code}"},
+                    ensure_ascii=False, indent=2,
+                )
+            body = resp.body
+            device = (body.get("metadata") or body) if isinstance(body, dict) else {}
+            if not device:
+                return json.dumps(
+                    {"success": False, "error": f"未找到设备编码为「{device_code}」的设备"},
+                    ensure_ascii=False, indent=2,
+                )
+            device_id = device.get("id")
+            if not device_id:
+                return json.dumps(
+                    {"success": False, "error": "设备数据中缺少 id 字段"},
+                    ensure_ascii=False, indent=2,
+                )
+
+            current_collector = device.get("collectorId")
+            current_job = device.get("jobId")
+
+            # 2. 解绑：若当前已有绑定，先解绑
+            unbound_items = []
+            if collector_id and current_collector:
+                resp = caller.unbind_device(deviceId=device_id, collectorId=current_collector)
+                if resp.status_code != 200:
+                    return json.dumps(
+                        {"success": False, "error": f"解绑采集员失败: HTTP {resp.status_code}"},
+                        ensure_ascii=False, indent=2,
+                    )
+                unbound_items.append(f"采集员 {current_collector}")
+            if job_id and current_job:
+                resp = caller.unbind_device(deviceId=device_id, jobId=str(current_job))
+                if resp.status_code != 200:
+                    return json.dumps(
+                        {"success": False, "error": f"解绑作业失败: HTTP {resp.status_code}"},
+                        ensure_ascii=False, indent=2,
+                    )
+                unbound_items.append(f"作业 {current_job}")
+
+            # 3. 绑定新值（未传的字段保留现有值，防止覆盖丢失）
+            final_collector = collector_id if collector_id else (current_collector or None)
+            final_job = job_id if job_id else (str(current_job) if current_job else None)
+
+            resp = caller.bind_device(
+                deviceId=device_id,
+                collectorId=final_collector,
+                jobId=final_job,
+            )
+            if resp.status_code != 200:
+                return json.dumps(
+                    {"success": False, "error": f"绑定失败: HTTP {resp.status_code}"},
+                    ensure_ascii=False, indent=2,
+                )
+
+            bound_items = []
+            if final_collector:
+                bound_items.append(f"采集员 {final_collector}")
+            if final_job:
+                bound_items.append(f"作业 {final_job}")
+
+            parts = []
+            if unbound_items:
+                parts.append(f"已解绑{'、'.join(unbound_items)}")
+            parts.append(f"已绑定{'、'.join(bound_items)}")
+
+            return json.dumps(
+                {
+                    "success": True,
+                    "message": "；".join(parts),
+                    "device_code": device_code,
+                    "unbound": {
+                        "collector_id": current_collector if collector_id and current_collector else None,
+                        "job_id": current_job if job_id and current_job else None,
+                    },
+                    "bound": {
+                        "collector_id": final_collector,
+                        "job_id": final_job,
+                    },
+                },
+                ensure_ascii=False, indent=2,
+            )
+
+        except Exception as e:
+            return json.dumps(
+                {"success": False, "error": f"重新绑定异常: {e}"},
+                ensure_ascii=False, indent=2,
+            )
