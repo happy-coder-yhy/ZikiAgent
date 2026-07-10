@@ -2096,6 +2096,38 @@ class ZataAPICaller(APICaller):
         """
         return self._request_data_manager(method="GET", path=f"/jobs/{jobId}")
 
+    def list_job_receives(
+        self,
+        collectorId: Optional[str] = None,
+        jobId: Optional[int] = None,
+        taskId: Optional[int] = None,
+        pageNum: Optional[int] = None,
+        pageSize: Optional[int] = None,
+    ) -> APIResponse:
+        """查询 Job 领取记录列表。
+
+        参数:
+            collectorId (Optional[str]): 采集员用户 ID。
+            jobId (Optional[int]): 作业 ID。
+            taskId (Optional[int]): 任务 ID。
+            pageNum (Optional[int]): 页码。
+            pageSize (Optional[int]): 每页数量。
+
+        返回:
+            APIResponse: Job 领取记录列表接口响应结果。
+        """
+        return self._request_data_manager(
+            method="GET",
+            path="/job-receives",
+            params=_build_json_body(
+                collectorId=collectorId,
+                jobId=jobId,
+                taskId=taskId,
+                pageNum=pageNum,
+                pageSize=pageSize,
+            ),
+        )
+
     def update_job(
         self,
         jobId: int,

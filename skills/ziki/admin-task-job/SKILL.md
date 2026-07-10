@@ -1,5 +1,5 @@
 ---
-name: task-work
+name: admin-task-job
 description: >
   Provides task overview statistics via `task_summary`, single-task detail
   query via `task_detail`, platform-wide job overview via `job_summary`,
@@ -10,7 +10,7 @@ description: >
   details; use `job_summary` for platform job overview; use `job_detail` when
   the user asks about a specific job's full details; use `task_job_details` when
   the user asks "show me all jobs under task xxx".
-tags: [zata, ziki, task-work, summary, statistics, detail]
+tags: [zata, ziki, admin-task-job, summary, statistics, detail]
 triggers:
   # 任务概览
   - user asks "平台有多少任务" / "how many tasks on the platform"
