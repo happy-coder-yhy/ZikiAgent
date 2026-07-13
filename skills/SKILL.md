@@ -61,6 +61,7 @@ triggers:
 |------|------|----------|
 | `query_task_job` | 查询与自己相关的所有任务和作业 | `query_task_job()` — **无需传参**，自动识别当前用户 |
 | `query_my_device` | 查询自己是否已被绑定设备 | `query_my_device()` — **无需传参**，自动识别当前用户 |
+| `query_device_binding` | 查询指定设备绑定了哪些采集员和作业 | `query_device_binding(device_name="...")` 或 `query_device_binding(device_code="...")` |
 
 > **自动身份识别**：`query_task_job` 不需要 agent 先查用户 ID。直接调用 `query_task_job()`（不传 collector_id），工具会通过 `.env` 中配置的登录账号自动获取当前采集员身份。Agent 无需调用 `search_user`。
 
@@ -68,6 +69,7 @@ triggers:
 - ✅ 用户说"帮我看看我的任务作业" → 直接 `query_task_job()`
 - ✅ 用户说"我的任务有哪些" → 直接 `query_task_job()`
 - ✅ 用户说"我绑定了哪个设备" / "我的设备" → 直接 `query_my_device()`
+- ✅ 用户说"agentTest 设备绑定了谁" → 直接 `query_device_binding(device_name="agentTest")`
 - ❌ 用户是采集员，却调用 `task_summary` + `task_detail` → 违反角色隔离
 - ✅ 用户未声明角色，说"平台有哪些设备" → 可用所有 admin 工具
 

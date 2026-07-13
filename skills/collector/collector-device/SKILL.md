@@ -1,11 +1,11 @@
 ---
 name: collector-device
 description: >
-  Query whether the current logged-in collector is bound to any device on the
-  Zata platform via the `query_my_device` MCP tool. Returns device details
-  (code, name, model, category, status, bound job) when bound, or a clear
-  "not bound" message otherwise.
-tags: [zata, ziki, collector, query-my-device]
+  Query device binding information on the Zata platform via the `query_my_device`
+  and `query_device_binding` MCP tools. `query_my_device` checks which device is
+  bound to the current collector. `query_device_binding` looks up a specific
+  device's bound collectors and jobs.
+tags: [zata, ziki, collector, query-my-device, query-device-binding]
 triggers:
   - user identifies as 采集员 / collector / data collector
   - user says "我的设备" / "my device"
@@ -14,6 +14,9 @@ triggers:
   - user asks "查一下我的设备" / "check my device"
   - user says "我有设备吗" / "do I have a device"
   - user wants to know if they are bound to any device
+  - user asks "xx设备的绑定情况" / "what is bound to device xx"
+  - user says "xx设备绑定了谁" / "who is bound to device xx"
+  - user asks "查看xx设备的采集员和作业" / "check device xx collectors and jobs"
 ---
 
 # Collector Device Binding / 采集员设备绑定查询
@@ -24,15 +27,16 @@ triggers:
 
 ## 用途
 
-查询当前登录采集员在 Zata 平台上**是否已被绑定设备**，并返回绑定设备的详细信息。
+查询 Zata 平台上的设备绑定信息，提供两个工具分别满足不同查询场景：
 
 | 工具 | 用途 |
 |------|------|
-| `query_my_device` | 查询当前采集员的设备绑定状态 |
+| `query_my_device` | 查询**当前采集员**被绑定到哪些设备 |
+| `query_device_binding` | 查询**指定设备**绑定了哪些采集员和作业 |
 
 ---
 
-## 调用方式
+## query_my_device — 查询我的设备
 
 ```
 Tool: query_my_device
@@ -152,10 +156,168 @@ Params:
 
 ---
 
+## query_device_binding — 查询指定设备绑定情况
+
+查询**指定设备**当前绑定的采集员和作业详情。
+
+### 调用方式
+
+```
+Tool: query_device_binding
+Params:
+  - device_name: string  — 设备名称（模糊匹配），如 "agentTest"、"dunjia"
+  - device_code: string  — 设备编码（精确匹配），如 "dunjia_device001"
+```
+
+### 参数说明
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `device_name` | string | 二选一 | 设备名称，支持模糊匹配。与 `device_code` 至少提供一个 |
+| `device_code` | string | 二选一 | 设备编码，精确匹配。同时提供时优先使用 `device_code` |
+
+### 返回字段
+
+#### 顶层
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `success` | bool | 是否成功 |
+| `found` | bool | 是否找到设备 |
+| `device` | object | 设备基本信息（见下方） |
+| `binding` | object | 绑定信息（见下方） |
+| `has_binding` | bool | 是否有任何绑定 |
+| `message` | string | 人类可读的结果描述 |
+
+#### device（设备基本信息）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | int | 设备 ID |
+| `deviceCode` | string | 设备编码（唯一标识） |
+| `deviceName` | string | 设备名称 |
+| `deviceTypeName` | string | 设备类型名称 |
+| `deviceBodyName` | string | 设备机身型号 |
+| `category` | string | 设备类别（robot/video） |
+| `categoryLabel` | string | 设备类别中文标签 |
+| `status` | int | 状态码（0=离线, 1=在线） |
+| `statusLabel` | string | 状态中文标签 |
+
+#### binding（绑定信息）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `collector` | object\|null | 绑定的采集员信息（见下方），无绑定时为 null |
+| `job` | object\|null | 绑定的作业信息（见下方），无绑定时为 null |
+
+#### binding.collector（采集员信息）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string | 采集员用户 ID |
+| `name` | string\|null | 采集员用户名（可能为 null，仅能查到 ID） |
+| `displayName` | string\|null | 采集员显示名称 |
+
+#### binding.job（作业信息）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | int | 作业 ID |
+| `name` | string | 作业名称 |
+| `description` | string | 作业描述 |
+| `collectStatus` | int | 采集状态码（0=未分配, 1=已分配, 2=已领取） |
+| `taskId` | int | 所属任务 ID |
+| `progress` | object | 作业进度（normalCollect, normalCollectTotal 等） |
+
+### 查询工作流
+
+1. 用户表达查看某设备绑定情况的意图（如"agentTest 设备绑定了谁？"）
+2. 若用户提供了设备名称 → 调用 `query_device_binding(device_name="agentTest")`
+3. 若用户提供了设备编码 → 调用 `query_device_binding(device_code="xxx")`
+4. 若返回 `multiple=true`（多个匹配）→ 列出匹配设备让用户选择，再用 `device_code` 精确查询
+5. 解读结果，向用户汇报绑定情况
+
+### 场景示例
+
+#### 示例 1：按名称查询
+
+用户："帮我看看 agentTest 这台设备绑定了谁"
+
+→ 调用 `query_device_binding(device_name="agentTest")`
+→ 返回：
+```json
+{
+  "success": true,
+  "found": true,
+  "device": {
+    "id": 42,
+    "deviceCode": "dunjia_device001",
+    "deviceName": "agentTest",
+    "deviceTypeName": "Android",
+    "deviceBodyName": "Xiaomi 14",
+    "category": "robot",
+    "categoryLabel": "真机",
+    "status": 1,
+    "statusLabel": "在线"
+  },
+  "binding": {
+    "collector": {
+      "id": "6e1465a8-...",
+      "name": "zhangsan",
+      "displayName": "张三"
+    },
+    "job": {
+      "id": 12345,
+      "name": "数据采集-第一批",
+      "description": "采集首页数据",
+      "collectStatus": 2,
+      "taskId": 261,
+      "progress": {
+        "normalCollect": 45,
+        "normalCollectTotal": 100
+      }
+    }
+  },
+  "has_binding": true,
+  "message": "设备「agentTest」当前绑定：采集员 zhangsan、作业「数据采集-第一批」"
+}
+```
+
+#### 示例 2：设备未绑定任何对象
+
+用户："查一下 device001 的绑定情况"
+
+→ 调用 `query_device_binding(device_code="device001")`
+→ 返回：
+```json
+{
+  "success": true,
+  "found": true,
+  "device": { "...": "..." },
+  "binding": {
+    "collector": null,
+    "job": null
+  },
+  "has_binding": false,
+  "message": "设备「device001」当前未绑定任何采集员或作业"
+}
+```
+
+#### 示例 3：多个匹配
+
+用户："dunjia 设备的绑定情况"
+
+→ 调用 `query_device_binding(device_name="dunjia")`
+→ 返回 `multiple=true`，列出 3 台匹配设备
+→ Agent 展示列表，用户选择 → 再用 `device_code` 精确查询
+
+---
+
 ## 注意事项
 
-- `collector_id` 必须是用户 ID（UUID 格式），不是用户名或显示名称
-- 一个采集员可以绑定多台设备（虽然通常只绑定一台）
-- `jobId` 可能为 `null`，表示设备尚未绑定作业
-- 设备绑定由管理员通过 `bind_collector_or_job` 或 `change_bind` 操作完成
+- `device_name` 支持模糊匹配，可能返回多个结果；`device_code` 精确匹配唯一设备
+- `binding.collector.name` 可能为 `null`（仅能查到 ID 时），但仍会返回 `id`
+- `binding.job` 为 `null` 表示设备未绑定作业
+- `has_binding` 为 `false` 表示设备当前无任何绑定，`collector` 和 `job` 均为 `null`
 - 采集员无法自行绑定/解绑设备，只能查询
+- 设备绑定由管理员通过 `bind_collector_or_job` 或 `change_bind` 操作完成
