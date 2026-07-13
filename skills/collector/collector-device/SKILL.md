@@ -1,22 +1,22 @@
 ---
 name: collector-device
 description: >
-  Query device binding information on the Zata platform via the `query_my_device`
-  and `query_device_binding` MCP tools. `query_my_device` checks which device is
-  bound to the current collector. `query_device_binding` looks up a specific
-  device's bound collectors and jobs.
-tags: [zata, ziki, collector, query-my-device, query-device-binding]
+  Query and manage device binding on the Zata platform via `query_my_device`,
+  `query_device_binding`, `bind_job_to_device`, and `bind_self_to_device` MCP tools.
+tags: [zata, ziki, collector, query-my-device, query-device-binding, bind-job-to-device, bind-self-to-device]
 triggers:
   - user identifies as 采集员 / collector / data collector
   - user says "我的设备" / "my device"
   - user says "我绑定了哪个设备" / "which device am I bound to"
-  - user says "我被分配到哪个设备" / "what device is assigned to me"
   - user asks "查一下我的设备" / "check my device"
-  - user says "我有设备吗" / "do I have a device"
-  - user wants to know if they are bound to any device
   - user asks "xx设备的绑定情况" / "what is bound to device xx"
-  - user says "xx设备绑定了谁" / "who is bound to device xx"
   - user asks "查看xx设备的采集员和作业" / "check device xx collectors and jobs"
+  - user says "给xx设备更换绑定xx作业" / "rebind device xx to job yy"
+  - user says "把xx设备绑定到xx作业" / "bind device xx to job yy"
+  - user says "xx设备切换作业" / "switch job for device xx"
+  - user says "把xx设备绑定给我" / "bind device xx to me"
+  - user says "让我来操作xx设备" / "let me operate device xx"
+  - user says "更换xx设备的采集员为我" / "change device xx collector to me"
 ---
 
 # Collector Device Binding / 采集员设备绑定查询
@@ -27,12 +27,14 @@ triggers:
 
 ## 用途
 
-查询 Zata 平台上的设备绑定信息，提供两个工具分别满足不同查询场景：
+查询和管理 Zata 平台上的设备绑定信息，提供四个工具：
 
 | 工具 | 用途 |
 |------|------|
 | `query_my_device` | 查询**当前采集员**被绑定到哪些设备 |
 | `query_device_binding` | 查询**指定设备**绑定了哪些采集员和作业 |
+| `bind_job_to_device` | 将指定设备**更换绑定**到当前采集员有权限的作业 |
+| `bind_self_to_device` | 将指定设备的**采集员更换为自己** |
 
 ---
 
@@ -313,11 +315,237 @@ Params:
 
 ---
 
+## bind_job_to_device — 更换设备绑定的作业
+
+采集员将自己有权限的作业绑定到指定设备。工具自动验证采集员对目标作业的访问权限，
+仅允许绑定采集员已领取或被分配到的作业。
+
+### 调用方式
+
+```
+Tool: bind_job_to_device
+Params:
+  - device_name: string   — 设备名称（模糊匹配），与 device_code 二选一
+  - device_code: string   — 设备编码（精确匹配），与 device_name 二选一
+  - job_description: string — 作业名称或描述（模糊匹配），与 job_id 二选一
+  - job_id: string        — 作业 ID（精确匹配），与 job_description 二选一
+```
+
+### 参数说明
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `device_name` | string | 二选一 | 设备名称，支持模糊匹配 |
+| `device_code` | string | 二选一 | 设备编码，精确匹配。同时提供时优先使用 |
+| `job_description` | string | 二选一 | 作业名称或描述，在采集员可访问的作业中模糊搜索 |
+| `job_id` | string | 二选一 | 作业 ID，精确匹配。同时提供时优先使用 |
+
+> **自动身份识别**：工具自动通过 `.env` 登录账号获取当前采集员身份，无需手动传入 collector_id。
+
+### 权限验证
+
+工具会自动构建采集员的**可访问作业目录**，包括：
+1. **已领取的作业**（通过 `job-receives` 接口）
+2. **已分配任务的作业**（通过 `list_tasks` + 任务下 `list_jobs`）
+
+仅当目标作业在可访问目录中时，才允许执行换绑操作。
+
+### 返回字段
+
+#### 顶层
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `success` | bool | 是否成功 |
+| `device` | object | 设备基本信息（id, deviceCode, deviceName） |
+| `previous_job_id` | int\|null | 换绑前的作业 ID |
+| `bound` | object | 新的绑定信息（collector_id, job_id） |
+| `message` | string | 人类可读的操作结果描述 |
+
+#### 多匹配场景（作业模糊搜索）
+
+当 `job_description` 匹配到多个作业时：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `success` | bool | true |
+| `multiple_jobs` | bool | true |
+| `count` | int | 匹配数量 |
+| `message` | string | 提示用户缩小范围 |
+| `jobs` | array | 匹配的作业列表（jobId, name, description, taskId） |
+
+### 查询工作流
+
+1. 用户表达更换设备作业的意图（如"给 agentTest 更换绑定真机作业"）
+2. 若用户提到了作业名称/描述 → `bind_job_to_device(device_name="agentTest", job_description="真机")`
+3. 若用户提到了作业 ID → `bind_job_to_device(device_code="xxx", job_id="132")`
+4. 若返回 `multiple_jobs=true` → 列出匹配作业让用户选择，再用 `job_id` 精确指定
+5. 若返回权限错误 → 告知用户该作业不在其可访问范围
+
+### 场景示例
+
+#### 示例 1：按作业描述换绑
+
+用户："给 agentTest 设备更换绑定真机作业测试那个作业"
+
+→ 调用 `bind_job_to_device(device_name="agentTest", job_description="真机作业测试")`
+→ 权限验证通过，返回：
+```json
+{
+  "success": true,
+  "device": {
+    "id": 6,
+    "deviceCode": "dunjia_device001",
+    "deviceName": "agentTest"
+  },
+  "previous_job_id": 136,
+  "bound": {
+    "collector_id": "27b5f00f-...",
+    "job_id": 132
+  },
+  "message": "设备「agentTest」已解绑旧作业；已绑定作业「hhh」"
+}
+```
+
+#### 示例 2：按作业 ID 换绑
+
+用户："把 agentTest 绑定到作业 132"
+
+→ 调用 `bind_job_to_device(device_name="agentTest", job_id="132")`
+→ 权限验证通过，直接换绑
+
+#### 示例 3：权限不足
+
+用户："给 agentTest 换绑作业 999"
+
+→ 调用 `bind_job_to_device(device_name="agentTest", job_id="999")`
+→ 返回：
+```json
+{
+  "success": false,
+  "error": "作业 #999 不在您的可访问范围内，该作业您暂无权限"
+}
+```
+
+→ Agent 应告知用户："抱歉，作业 #999 您暂无权限。您只能绑定自己已领取或被分配到的作业。"
+
+#### 示例 4：多个匹配
+
+用户："给 agentTest 换绑 hhh 作业"
+
+→ 调用 `bind_job_to_device(device_name="agentTest", job_description="hhh")`
+→ 返回 `multiple_jobs=true`，列出 2 个匹配作业
+→ Agent 展示列表，用户选择 → 再用 `job_id` 精确指定
+
+---
+
+## bind_self_to_device — 将设备采集员更换为自己
+
+采集员将自己绑定到指定设备上。工具自动识别当前采集员身份并完成换绑，
+设备的作业绑定不受影响。
+
+### 调用方式
+
+```
+Tool: bind_self_to_device
+Params:
+  - device_name: string  — 设备名称（模糊匹配），与 device_code 二选一
+  - device_code: string  — 设备编码（精确匹配），与 device_name 二选一
+```
+
+### 参数说明
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `device_name` | string | 二选一 | 设备名称，支持模糊匹配 |
+| `device_code` | string | 二选一 | 设备编码，精确匹配。同时提供时优先使用 |
+
+> **自动身份识别**：工具自动通过 `.env` 登录账号获取当前采集员身份，无需手动传入 collector_id。
+
+### 返回字段
+
+#### 顶层
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `success` | bool | 是否成功 |
+| `already_bound` | bool | 是否已经绑定到自己（幂等检查），仅 success=true 时出现 |
+| `device` | object | 设备基本信息（id, deviceCode, deviceName） |
+| `previous_collector_id` | string\|null | 换绑前的采集员 ID（null 表示之前无绑定） |
+| `bound` | object | 新的绑定信息（collector_id, job_id） |
+| `message` | string | 人类可读的操作结果描述 |
+
+### 操作工作流
+
+1. 用户表达换绑采集员的意图（如"把 agentTest 绑定给我"）
+2. 若用户提供了设备名称 → `bind_self_to_device(device_name="agentTest")`
+3. 若用户提供了设备编码 → `bind_self_to_device(device_code="dunjia_device001")`
+4. 工具自动完成：
+   - 查找设备
+   - 检查是否已绑定自己（是则直接返回，幂等）
+   - 解绑旧采集员 → 绑定自己
+5. 解读结果，向用户汇报
+
+### 场景示例
+
+#### 示例 1：将设备绑定给自己
+
+用户："把 agentTest 设备的采集员换成我"
+
+→ 调用 `bind_self_to_device(device_name="agentTest")`
+→ 返回：
+```json
+{
+  "success": true,
+  "device": {
+    "id": 6,
+    "deviceCode": "dunjia_device001",
+    "deviceName": "agentTest"
+  },
+  "previous_collector_id": "old-collector-uuid",
+  "bound": {
+    "collector_id": "27b5f00f-...",
+    "job_id": 136
+  },
+  "message": "设备「agentTest」已解绑旧采集员；已绑定采集员「collector」"
+}
+```
+
+#### 示例 2：已经绑定到自己（幂等）
+
+用户："让我来操作 agentTest"
+
+→ 调用 `bind_self_to_device(device_name="agentTest")`
+→ 设备已绑定到当前采集员，返回：
+```json
+{
+  "success": true,
+  "already_bound": true,
+  "device": { "id": 6, "deviceCode": "dunjia_device001", "deviceName": "agentTest" },
+  "bound": { "collector_id": "27b5f00f-...", "job_id": 136 },
+  "message": "设备「agentTest」已绑定到您（collector），无需重复操作"
+}
+```
+
+#### 示例 3：多个匹配
+
+用户："把 dunjia 设备绑定给我"
+
+→ 调用 `bind_self_to_device(device_name="dunjia")`
+→ 返回 `multiple_devices=true`，列出所有匹配设备
+→ Agent 展示列表，用户选择 → 再用 `device_code` 精确指定
+
+---
+
 ## 注意事项
 
 - `device_name` 支持模糊匹配，可能返回多个结果；`device_code` 精确匹配唯一设备
 - `binding.collector.name` 可能为 `null`（仅能查到 ID 时），但仍会返回 `id`
 - `binding.job` 为 `null` 表示设备未绑定作业
 - `has_binding` 为 `false` 表示设备当前无任何绑定，`collector` 和 `job` 均为 `null`
-- 采集员无法自行绑定/解绑设备，只能查询
-- 设备绑定由管理员通过 `bind_collector_or_job` 或 `change_bind` 操作完成
+- `bind_job_to_device` 只能绑定采集员**自己有权限的作业**（已领取或被分配到的）
+- `bind_self_to_device` 会保留设备的当前作业绑定，仅更换采集员
+- `bind_self_to_device` 是幂等操作：已绑定到自己时直接返回成功，不会重复绑定
+- `job_description` 匹配时同时搜索作业的 `name` 和 `description` 字段，大小写不敏感
+- 采集员只能更换作业绑定，不能更换采集员绑定（采集员绑定由管理员操作）
+- 管理员的设备管理工具（`bind_collector_or_job`、`change_bind`）不受此权限限制
