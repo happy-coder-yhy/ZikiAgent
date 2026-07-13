@@ -114,6 +114,7 @@ def create_app(caller: Optional[ZataAPICaller] = None) -> "FastMCP":
     from mcp_server.admin.scene_task_job import register_tools as register_scene_task_job
     from mcp_server.admin.device import register_tools as register_device
     from mcp_server.collector.task_job import register_tools as register_collector_task_job
+    from mcp_server.collector.device import register_tools as register_collector_device
 
     register_platform_config(mcp, caller)
     register_scene_task(mcp, caller)
@@ -122,6 +123,7 @@ def create_app(caller: Optional[ZataAPICaller] = None) -> "FastMCP":
     register_scene_task_job(mcp, caller)
     register_device(mcp, caller)
     register_collector_task_job(mcp, caller)
+    register_collector_device(mcp, caller)
 
     return mcp
 

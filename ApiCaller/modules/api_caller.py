@@ -1626,6 +1626,7 @@ class ZataAPICaller(APICaller):
         deviceCode: Optional[str] = None,
         deviceName: Optional[str] = None,
         status: Optional[int] = None,
+        collectorId: Optional[str] = None,
         pageNum: Optional[int] = None,
         pageSize: Optional[int] = None,
     ) -> APIResponse:
@@ -1636,6 +1637,7 @@ class ZataAPICaller(APICaller):
             deviceCode (Optional[str]): 设备编码。
             deviceName (Optional[str]): 设备名称。
             status (Optional[int]): 状态。
+            collectorId (Optional[str]): 采集员用户 ID（筛选绑定到该采集员的设备）。
             pageNum (Optional[int]): 页码。
             pageSize (Optional[int]): 每页数量。
 
@@ -1650,6 +1652,7 @@ class ZataAPICaller(APICaller):
                 deviceCode=deviceCode,
                 deviceName=deviceName,
                 status=status,
+                collectorId=collectorId,
                 pageNum=pageNum,
                 pageSize=pageSize,
             ),
