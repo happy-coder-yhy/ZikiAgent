@@ -69,14 +69,14 @@ def _build_caller(access_token: Optional[str] = None) -> ZataAPICaller:
     config = APICallerConfig(base_url=base_url)
     caller = ZataAPICaller(config)
 
-    # --- 认证方式一：直接使用 access_token（优先） ---
+    # --- 认证方式一：直接使用 access_token（优先），生产环境中删去从环境变量中获取token的代码 ---
     token = access_token or os.environ.get("ZATA_ACCESS_TOKEN")
     if token:
         caller.set_access_token(access_token=token)
         print("[auth] 使用 access_token 认证", file=sys.stderr)
         return caller
 
-    # --- 认证方式二：用户名密码登录（兼容） ---
+    # --- 认证方式二：用户名密码登录（兼容），生产环境中删去---
     username = os.environ.get("ZATA_USERNAME")
     password = os.environ.get("ZATA_PASSWORD")
     organization = os.environ.get("ZATA_ORGANIZATION", "agent")
