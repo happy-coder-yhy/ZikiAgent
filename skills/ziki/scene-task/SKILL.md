@@ -50,8 +50,8 @@ triggers:
 | 任务用途 ID（如"仿真评测"） | `get_task_purpose(name="仿真评测")` | **1 次** |
 | 场景 ID（主场景如"居家"，子场景如"整理"） | `get_scene(name="居家")` | **1 次** |
 | 用户 ID（采集员/审核员用户名） | `search_user(name="张三")` | **1 次** |
-| 项目列表 | `get_platform_config` → `_project_summary` | 5 次 |
-| 场景标签、设备类型等全量信息 | `get_platform_config` | 5 次 |
+| 项目列表 | `get_platform_config` → `_project_summary` | 1 次（较重） |
+| 场景标签、设备类型等全量信息 | `get_platform_config` | 1 次（较重） |
 
 | 参数 | 来源 | 说明 |
 |------|------|------|
@@ -104,8 +104,18 @@ Optional Params:
    - 用户未提供 difficulty → 询问"简单、普通还是困难？"
    - 用户未提供 device_scheme → 展示可用设备方案列表，询问用户
 4. **若用户指定了采集员或审核员**：调用 `search_user(name="用户名")` 查询其 userId，填入 `collector_ids` 或 `reviewer_ids`
-5. 组装参数后调用 `create_scene_task`
-6. 返回创建结果给用户
+5. **💡 优化：如果用户在创建时提到了采集员，直接传入 `collector_ids`，一步到位**，无需先创建再修改分配
+6. 组装参数后调用 `create_scene_task`
+7. 返回创建结果给用户
+
+### 场景层级说明
+
+场景标签有父子层级。`create_scene_task` 只接受 `scene_id`（无单独的 `mainSceneId` 参数）：
+- 传入**子场景 ID**（如"搬运"=191，`parentId=189`）→ API 自动填充 `mainSceneId=189(工厂)`、`mainSceneName=工厂`
+- 传入**主场景 ID**（如"工厂"=189）→ `mainSceneId=0`、`mainSceneName=""`
+- 使用 `get_scene(name="搬运")` 可查询子场景的 `parentName` 来确认属于哪个主场景
+
+推荐：如果需要用户说的场景是"工厂搬运"，先查 `get_scene(name="搬运")` 确认其 `parentName="工厂"`，然后传入 `scene_id=191`（搬运），API 自动关联主场景。
 
 ---
 
@@ -165,6 +175,7 @@ Optional Params（至少传一个）:
 ### 限制条件与已知行为
 
 - **仅限未发布（status=1）的任务** — 已发布任务（status=2）**只能修改 title、description、remark**，修改其他字段则直接拒绝，不要尝试修改或调用mcp tool
+- **`update_scene_task` 可能返回「无法确定任务标题」**：如果任务创建后未被正确持久化（`task_detail`/`get_scene_task` 查不到），`update_scene_task` 因无法获取原数据中的 title 而失败。此时应重新创建任务，不要执着于更新。
 - 修改前先调 `get_scene_task` 查看任务状态，确认 `status=1`
 - **至少指定一个要修改的字段**，不能空调用
 - task_type 只接受 "短程" 或 "长程"

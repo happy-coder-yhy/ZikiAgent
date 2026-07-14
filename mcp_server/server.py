@@ -53,25 +53,42 @@ from ApiCaller.modules.api_caller import (
 # 凭证与调用器初始化
 # ---------------------------------------------------------------------------
 
-def _build_caller() -> ZataAPICaller:
-    """从环境变量构建并认证 ZataAPICaller。"""
+def _build_caller(access_token: Optional[str] = None) -> ZataAPICaller:
+    """从环境变量构建并认证 ZataAPICaller。
+
+    认证优先级：
+    1. 参数 access_token 或环境变量 ZATA_ACCESS_TOKEN — 直接注入 token，跳过登录
+    2. 环境变量 ZATA_USERNAME + ZATA_PASSWORD — 调用 login() 获取 token
+    """
     base_url = os.environ.get("ZATA_BASE_URL")
-    username = os.environ.get("ZATA_USERNAME")
-    password = os.environ.get("ZATA_PASSWORD")
-    organization = os.environ.get("ZATA_ORGANIZATION", "agent")
 
     if not base_url:
         print("FATAL: 环境变量 ZATA_BASE_URL 未设置，请检查 .env 文件", file=sys.stderr)
         sys.exit(1)
+
+    config = APICallerConfig(base_url=base_url)
+    caller = ZataAPICaller(config)
+
+    # --- 认证方式一：直接使用 access_token（优先） ---
+    token = access_token or os.environ.get("ZATA_ACCESS_TOKEN")
+    if token:
+        caller.set_access_token(access_token=token)
+        print("[auth] 使用 access_token 认证", file=sys.stderr)
+        return caller
+
+    # --- 认证方式二：用户名密码登录（兼容） ---
+    username = os.environ.get("ZATA_USERNAME")
+    password = os.environ.get("ZATA_PASSWORD")
+    organization = os.environ.get("ZATA_ORGANIZATION", "agent")
+
     if not username:
-        print("FATAL: 环境变量 ZATA_USERNAME 未设置，请检查 .env 文件", file=sys.stderr)
+        print("FATAL: 环境变量 ZATA_USERNAME 或 ZATA_ACCESS_TOKEN 未设置，请检查 .env 文件", file=sys.stderr)
         sys.exit(1)
     if not password:
         print("FATAL: 环境变量 ZATA_PASSWORD 未设置，请检查 .env 文件", file=sys.stderr)
         sys.exit(1)
 
-    config = APICallerConfig(base_url=base_url)
-    caller = ZataAPICaller(config)
+    print("[auth] 使用用户名密码登录", file=sys.stderr)
     caller.login(
         username=username,
         password=password,
@@ -84,11 +101,15 @@ def _build_caller() -> ZataAPICaller:
 # FastMCP 应用工厂
 # ---------------------------------------------------------------------------
 
-def create_app(caller: Optional[ZataAPICaller] = None) -> "FastMCP":
+def create_app(
+    caller: Optional[ZataAPICaller] = None,
+    access_token: Optional[str] = None,
+) -> "FastMCP":
     """创建 FastMCP 实例并注册所有工具。
 
     Args:
         caller: 可选，已经认证的 ZataAPICaller。为 None 时从环境变量创建。
+        access_token: 可选，直接传入 access_token（优先于环境变量）。
 
     Returns:
         FastMCP: 配置好的 MCP 应用实例。
@@ -100,7 +121,7 @@ def create_app(caller: Optional[ZataAPICaller] = None) -> "FastMCP":
         )
 
     if caller is None:
-        caller = _build_caller()
+        caller = _build_caller(access_token=access_token)
 
     mcp = FastMCP("ziki-platform")
 
