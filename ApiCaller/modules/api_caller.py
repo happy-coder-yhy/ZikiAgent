@@ -2131,6 +2131,33 @@ class ZataAPICaller(APICaller):
             ),
         )
 
+    def create_job_receives(
+        self,
+        collectorId: str,
+        jobId: int,
+        taskId: int,
+    ) -> APIResponse:
+        """采集员领取作业（创建 Job 领取记录）。
+
+        参数:
+            collectorId (str): 采集员用户 ID。
+            jobId (int): 作业 ID。
+            taskId (int): 任务 ID。
+
+        返回:
+            APIResponse: 领取结果接口响应。
+        """
+        json_body = {
+            "collectorId": collectorId,
+            "jobId": jobId,
+            "taskId": taskId,
+        }
+        return self._request_data_manager(
+            method="POST",
+            path="/job-receives",
+            json_body=json_body,
+        )
+
     def update_job(
         self,
         jobId: int,

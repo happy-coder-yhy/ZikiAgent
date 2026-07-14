@@ -64,6 +64,7 @@ triggers:
 | `query_device_binding` | 查询指定设备绑定了哪些采集员和作业 | `query_device_binding(device_name="...")` 或 `query_device_binding(device_code="...")` |
 | `bind_job_to_device` | 将指定设备更换绑定自己有权限的作业 | `bind_job_to_device(device_name="...", job_description="...")` |
 | `bind_self_to_device` | 将指定设备的采集员更换为自己 | `bind_self_to_device(device_name="...")` — **无需传参**，自动识别当前用户 |
+| `claim_job` | 领取与自己相关的已发布任务下的作业 | `claim_job(job_description="...")` — **无需传参**，自动识别当前用户 |
 
 > **自动身份识别**：`query_task_job` 不需要 agent 先查用户 ID。直接调用 `query_task_job()`（不传 collector_id），工具会通过 `.env` 中配置的登录账号自动获取当前采集员身份。Agent 无需调用 `search_user`。
 
@@ -74,6 +75,8 @@ triggers:
 - ✅ 用户说"agentTest 设备绑定了谁" → 直接 `query_device_binding(device_name="agentTest")`
 - ✅ 用户说"给 agentTest 更换绑定真机作业" → 直接 `bind_job_to_device(device_name="agentTest", job_description="真机")`
 - ✅ 用户说"把 agentTest 绑定给我" → 直接 `bind_self_to_device(device_name="agentTest")`
+- ✅ 用户说"帮我领取居家整理任务下的作业维护测试作业" → 直接 `claim_job(job_description="作业维护测试", task_name="居家整理")`
+- ✅ 用户说"我要领取111作业" → 直接 `claim_job(job_description="111")`
 - ❌ 用户是采集员，却调用 `task_summary` + `task_detail` → 违反角色隔离
 - ✅ 用户未声明角色，说"平台有哪些设备" → 可用所有 admin 工具
 
@@ -86,3 +89,4 @@ triggers:
 3. **不要用终端执行命令** — 即使只是查看数据也不允许
 4. **如果缺少某个功能的 MCP 工具** — 告知用户需要补充对应工具，不要用代码绕过
 5. **遵循角色隔离** — 采集员只使用 collector 工具，管理员使用 admin 工具
+6. **严禁依赖上下文信息** - 对每个用户指令，严格按照skill文档调用mcp tool，不要依赖之前工具调用的结果
