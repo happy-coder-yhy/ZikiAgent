@@ -66,3 +66,4 @@ package.json
 zata_doc/
 
 *.db
+.logs/
