@@ -31,6 +31,7 @@ venv/
 ENV/
 
 # IDE 配置文件
+.claude/
 .idea/
 .vscode/
 .worktrees/
@@ -63,3 +64,5 @@ htmlcov/
 Todo.txt
 package.json
 zata_doc/
+
+*.db
