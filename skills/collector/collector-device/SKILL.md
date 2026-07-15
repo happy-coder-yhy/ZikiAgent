@@ -216,9 +216,11 @@ Params:
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `id` | string | 采集员用户 ID |
-| `name` | string\|null | 采集员用户名（可能为 null，仅能查到 ID） |
-| `displayName` | string\|null | 采集员显示名称 |
+| `id` | string | 采集员用户 ID（始终返回） |
+| `name` | string | 采集员用户名（可能为空字符串，仅能从用户列表匹配到 ID 时） |
+| `displayName` | string | 采集员显示名称（可能为空字符串） |
+| `status` | int\|string | 采集员状态（来自用户列表匹配） |
+| `createdAt` | string | 采集员创建时间（来自用户列表匹配） |
 
 #### binding.job（作业信息）
 
@@ -540,7 +542,13 @@ Params:
 ## 注意事项
 
 - `device_name` 支持模糊匹配，可能返回多个结果；`device_code` 精确匹配唯一设备
-- `binding.collector.name` 可能为 `null`（仅能查到 ID 时），但仍会返回 `id`
+- `binding.collector.id` 始终返回设备绑定的采集员 ID，即使无法从用户列表匹配到名称
+- `binding.collector.name` 和 `displayName` 通过以下策略依次获取（任一命中即停止）：
+  1. 直接按用户 ID 查询 RBAC `/users/{id}` 接口
+  2. 全量拉取用户列表按 ID 匹配
+  3. 匹配当前登录用户
+  4. 按用户名称模糊搜索
+  全部策略未命中时 name / displayName 为空字符串，但 id 字段保留
 - `binding.job` 为 `null` 表示设备未绑定作业
 - `has_binding` 为 `false` 表示设备当前无任何绑定，`collector` 和 `job` 均为 `null`
 - `bind_job_to_device` 只能绑定采集员**自己有权限的作业**（已领取或被分配到的）

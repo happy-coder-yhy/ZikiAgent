@@ -307,39 +307,102 @@ def register_tools(mcp, caller) -> None:
             cid = device.get("collectorId")
             if cid:
                 collector_info = {"id": cid}
-                # 策略 1：通过 RBAC 用户列表查找（需要管理员权限）
+
+                # 辅助：从单个用户对象（dict）提取 name / displayName
+                def _fill_from_user(u: dict) -> bool:
+                    """从单个用户 dict 填充 collector_info。返回 True 表示已匹配。"""
+                    if not isinstance(u, dict):
+                        return False
+                    if str(u.get("id") or "") != str(cid):
+                        return False
+                    collector_info["name"] = (
+                        u.get("username") or u.get("userName")
+                        or u.get("name") or u.get("displayName") or ""
+                    )
+                    collector_info["displayName"] = (
+                        u.get("displayName") or u.get("name") or ""
+                    )
+                    collector_info["status"] = (
+                        u.get("status") if u.get("status") is not None else ""
+                    )
+                    collector_info["createdAt"] = u.get("createdAt") or ""
+                    return True
+
+                # 辅助：从用户列表中按 ID 匹配
+                def _match_user(users: list[dict]) -> bool:
+                    for u in users:
+                        if _fill_from_user(u):
+                            return True
+                    return False
+
+                # 辅助：从 API 响应中提取用户列表（多种格式兼容）
+                def _extract_users(body: dict) -> list[dict]:
+                    """从 RBAC 用户查询响应中提取用户列表。"""
+                    if not isinstance(body, dict):
+                        return []
+                    meta = body.get("metadata")
+                    if isinstance(meta, dict):
+                        # 格式 1a: metadata.results
+                        results = meta.get("results")
+                        if isinstance(results, list):
+                            return results
+                        # 格式 1b: metadata.records
+                        records = meta.get("records")
+                        if isinstance(records, list):
+                            return records
+                    # 格式 2: _extract_metadata_items 兜底
+                    items = _extract_metadata_items(body)
+                    if items:
+                        return items
+                    # 格式 3: 某些 RBAC 版本将用户列表 JSON 编码在 message 中
+                    msg = body.get("message")
+                    if isinstance(msg, list):
+                        return msg
+                    if isinstance(msg, str):
+                        import json as _json
+                        try:
+                            parsed = _json.loads(msg)
+                            return parsed if isinstance(parsed, list) else []
+                        except Exception:
+                            pass
+                    return []
+
+                # 辅助：从 get_user 单用户响应中提取用户对象
+                def _extract_single_user(body: dict) -> dict | None:
+                    """从 RBAC 单用户查询响应中提取用户 dict。"""
+                    if not isinstance(body, dict):
+                        return None
+                    # metadata 直接就是用户对象
+                    meta = body.get("metadata")
+                    if isinstance(meta, dict) and meta.get("id"):
+                        return meta
+                    # metadata 为空时，body 本身可能是用户对象
+                    if body.get("id"):
+                        return body
+                    return None
+
+                # ---- 策略 1：直接按 ID 查用户（最可靠） ----
                 try:
-                    users_resp = caller.list_users(pageNum=1, pageSize=500)
-                    if users_resp.status_code == 200:
-                        # RBAC 响应格式不同于 data-manager，需要从 message 字段解析
-                        msg = users_resp.body.get("message") if isinstance(users_resp.body, dict) else None
-                        if isinstance(msg, str):
-                            import json as _json
-                            try:
-                                parsed = _json.loads(msg)
-                                if isinstance(parsed, dict):
-                                    users = parsed.get("users") or parsed.get("data") or parsed.get("rows") or []
-                                elif isinstance(parsed, list):
-                                    users = parsed
-                                else:
-                                    users = []
-                            except Exception:
-                                users = []
-                        elif isinstance(msg, list):
-                            users = msg
-                        elif isinstance(msg, dict):
-                            users = msg.get("users") or msg.get("data") or msg.get("rows") or []
-                        else:
-                            users = []
-                        for u in users:
-                            if isinstance(u, dict) and u.get("id") == cid:
-                                collector_info["name"] = u.get("username") or u.get("name")
-                                collector_info["displayName"] = u.get("displayName")
-                                break
+                    user_resp = caller.get_user(user_id=cid)
+                    if user_resp.status_code == 200:
+                        user = _extract_single_user(user_resp.body)
+                        if user:
+                            _fill_from_user(user)
                 except Exception:
                     pass
 
-                # 策略 2：RBAC 失败时，尝试匹配当前登录用户
+                # ---- 策略 2：全量拉取用户列表，从中按 ID 匹配 ----
+                if not collector_info.get("name"):
+                    try:
+                        users_resp = caller.list_users(pageNum=1, pageSize=500)
+                        if users_resp.status_code == 200:
+                            users = _extract_users(users_resp.body)
+                            if users:
+                                _match_user(users)
+                    except Exception:
+                        pass
+
+                # ---- 策略 3：匹配当前登录用户 ----
                 if not collector_info.get("name"):
                     try:
                         me_resp = caller.userinfo()
@@ -350,11 +413,24 @@ def register_tools(mcp, caller) -> None:
                                 if isinstance(me_body, dict)
                                 else {}
                             )
-                            if me.get("id") == cid:
-                                collector_info["name"] = me.get("name") or me.get("username")
-                                collector_info["displayName"] = me.get("displayName")
+                            _fill_from_user(me)
                     except Exception:
                         pass
+
+                # ---- 策略 4：通过 list_users_by_name 模糊搜索 ----
+                if not collector_info.get("name") and isinstance(cid, str) and len(cid) >= 3:
+                    try:
+                        by_name_resp = caller.list_users_by_name(name=cid[:8])
+                        if by_name_resp.status_code == 200:
+                            users = _extract_users(by_name_resp.body)
+                            _match_user(users)
+                    except Exception:
+                        pass
+
+                # 若仍未匹配，保留 id 并将名称字段置空
+                if not collector_info.get("name"):
+                    collector_info["name"] = ""
+                    collector_info["displayName"] = ""
 
             # ---- 充实作业信息 ----
             job_info = None
@@ -373,9 +449,6 @@ def register_tools(mcp, caller) -> None:
                         if isinstance(job, dict):
                             raw_cs = job.get("collectStatus")
                             raw_rs = job.get("reviewStatus")
-                            # name 可能为空，使用 taskTitle 兜底
-                            job_name = job.get("name") or job.get("taskTitle") or ""
-                            job_info["name"] = job_name
                             job_info["description"] = job.get("description")
                             job_info["taskId"] = job.get("taskId")
                             job_info["collectStatus"] = raw_cs
@@ -403,11 +476,11 @@ def register_tools(mcp, caller) -> None:
             has_binding = bool(collector_info or job_info)
             binding_parts = []
             if collector_info:
-                name = collector_info.get("name") or collector_info["id"]
+                name = collector_info.get("name") or collector_info.get("displayName") or "未知用户"
                 binding_parts.append(f"采集员 {name}")
             if job_info:
-                job_name = job_info.get("name") or f"作业#{job_info['id']}"
-                binding_parts.append(f"作业「{job_name}」")
+                job_label = job_info.get("description") or f"作业#{job_info['id']}"
+                binding_parts.append(f"作业「{job_label}」")
 
             message = (
                 f"设备「{device_info.get('deviceName') or device_info.get('deviceCode')}」"

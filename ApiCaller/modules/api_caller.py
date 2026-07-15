@@ -1807,6 +1807,17 @@ class ZataAPICaller(APICaller):
         """
         return self._request_rbac(method="GET", path="/users/name", params={"name": name})
 
+    def get_user(self, user_id: str) -> APIResponse:
+        """按用户 ID 查询单个用户详情。
+
+        参数:
+            user_id (str): 用户 ID（UUID 格式）。
+
+        返回:
+            APIResponse: 用户详情接口响应结果。
+        """
+        return self._request_rbac(method="GET", path=f"/users/{user_id}")
+
     def list_tasks(
         self,
         collectMethod: Optional[str] = None,

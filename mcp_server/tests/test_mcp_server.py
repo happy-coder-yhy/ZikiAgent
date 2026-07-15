@@ -1052,6 +1052,335 @@ class MCPToolFunctionsTest(unittest.TestCase):
         self.assertEqual(call_body["projectId"], 5)
         self.assertEqual(call_body["taskCategory"], "scene")
 
+    # ------------------------------------------------------------------
+    # 测试: query_device_binding (采集员 — 查询设备绑定情况)
+    # ------------------------------------------------------------------
+
+    def _setup_collector_tools(self):
+        """Helper: rebuild app with collector tools only (reuse existing mock_caller)."""
+        import mcp_server.server as server_mod
+
+        app = server_mod.create_app(caller=self.mock_caller)
+        tool_manager = app._tool_manager
+        collector_tools = {}
+        for tool in tool_manager._tools.values():
+            if tool.name in (
+                "query_device_binding",
+                "query_my_device",
+                "bind_job_to_device",
+                "bind_self_to_device",
+            ):
+                collector_tools[tool.name] = tool.fn
+        return collector_tools
+
+    def test_query_device_binding_by_code_with_collector_and_job(self):
+        """query_device_binding 按 device_code 查询，返回采集员 id/name/displayName 和作业信息。"""
+        self.mock_caller.get_device_by_code.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": {
+                    "id": 42, "deviceCode": "dunjia_device001",
+                    "deviceName": "agentTest", "deviceTypeName": "Android",
+                    "deviceBodyName": "Xiaomi 14", "category": "robot",
+                    "status": 1,
+                    "collectorId": "6e1465a8-1234-5678-9abc-def012345678",
+                    "jobId": 136,
+                },
+            },
+            raw_text="...",
+        )
+        # Strategy 1: get_user 直接返回用户详情
+        self.mock_caller.get_user.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": {
+                    "id": "6e1465a8-1234-5678-9abc-def012345678",
+                    "username": "zhangsan", "displayName": "张三",
+                    "status": 1, "createdAt": "2025-01-15T10:30:00Z",
+                },
+            },
+            raw_text="...",
+        )
+        self.mock_caller.get_job.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": {
+                    "id": 136, "name": "数据采集-第一批",
+                    "description": "采集首页数据",
+                    "collectStatus": 2, "reviewStatus": 0, "taskId": 261,
+                    "progress": {"normalCollect": 45, "normalCollectTotal": 100},
+                },
+            },
+            raw_text="...",
+        )
+
+        tools = self._setup_collector_tools()
+        result_str = tools["query_device_binding"](device_code="dunjia_device001")
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["found"])
+        self.assertTrue(result["has_binding"])
+
+        collector = result["binding"]["collector"]
+        self.assertIsNotNone(collector)
+        self.assertEqual(collector["id"], "6e1465a8-1234-5678-9abc-def012345678")
+        self.assertEqual(collector["name"], "zhangsan")
+        self.assertEqual(collector["displayName"], "张三")
+
+        job = result["binding"]["job"]
+        self.assertIsNotNone(job)
+        self.assertEqual(job["id"], 136)
+        self.assertEqual(job["description"], "采集首页数据")
+        self.assertEqual(job["collectStatus"], 2)
+
+    def test_query_device_binding_collector_with_userName_field(self):
+        """query_device_binding 兼容 API 返回 userName（驼峰命名）字段。"""
+        self.mock_caller.get_device_by_code.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": {
+                    "id": 1, "deviceCode": "test001", "deviceName": "testDevice",
+                    "deviceTypeName": "iOS", "deviceBodyName": "iPhone 15",
+                    "category": "video", "status": 0,
+                    "collectorId": "user-uuid-001", "jobId": None,
+                },
+            },
+            raw_text="...",
+        )
+        # Strategy 1: get_user 返回 userName（驼峰）
+        self.mock_caller.get_user.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": {
+                    "id": "user-uuid-001",
+                    "userName": "wangwu", "displayName": "王五",
+                },
+            },
+            raw_text="...",
+        )
+
+        tools = self._setup_collector_tools()
+        result_str = tools["query_device_binding"](device_code="test001")
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        collector = result["binding"]["collector"]
+        self.assertIsNotNone(collector)
+        self.assertEqual(collector["id"], "user-uuid-001")
+        self.assertEqual(collector["name"], "wangwu")
+        self.assertEqual(collector["displayName"], "王五")
+
+    def test_query_device_binding_no_collector_bound(self):
+        """query_device_binding 设备未绑定采集员和作业。"""
+        self.mock_caller.get_device_by_code.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": {
+                    "id": 99, "deviceCode": "free_device", "deviceName": "空闲设备",
+                    "deviceTypeName": "Android", "deviceBodyName": "Pixel 8",
+                    "category": "robot", "status": 0,
+                    "collectorId": None, "jobId": None,
+                },
+            },
+            raw_text="...",
+        )
+
+        tools = self._setup_collector_tools()
+        result_str = tools["query_device_binding"](device_code="free_device")
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["found"])
+        self.assertFalse(result["has_binding"])
+        self.assertIsNone(result["binding"]["collector"])
+        self.assertIsNone(result["binding"]["job"])
+
+    def test_query_device_binding_collector_not_found_in_users(self):
+        """query_device_binding 采集员 ID 存在但所有查找策略都失败时，仍返回 id。"""
+        self.mock_caller.get_device_by_code.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": {
+                    "id": 50, "deviceCode": "orphan_device", "deviceName": "孤儿设备",
+                    "deviceTypeName": "Android", "deviceBodyName": "Samsung S24",
+                    "category": "robot", "status": 1,
+                    "collectorId": "unknown-user-uuid", "jobId": 200,
+                },
+            },
+            raw_text="...",
+        )
+        # Strategy 1: get_user 查不到
+        self.mock_caller.get_user.return_value = APIResponse(
+            status_code=404, headers={},
+            body={"message": "用户不存在"},
+            raw_text="...",
+        )
+        self.mock_caller.list_users.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": {
+                    "records": [
+                        {"id": "other-user", "username": "other", "displayName": "其他用户"},
+                    ]
+                },
+            },
+            raw_text="...",
+        )
+        self.mock_caller.list_users_by_name.return_value = APIResponse(
+            status_code=200, headers={},
+            body={"code": 0, "metadata": {"results": []}},
+            raw_text="...",
+        )
+        self.mock_caller.userinfo.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": {
+                    "id": "different-user", "name": "current", "displayName": "当前用户",
+                },
+            },
+            raw_text="...",
+        )
+        self.mock_caller.get_job.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": {
+                    "id": 200, "description": "测试作业",
+                    "collectStatus": 1, "reviewStatus": 1, "taskId": 10,
+                },
+            },
+            raw_text="...",
+        )
+
+        tools = self._setup_collector_tools()
+        result_str = tools["query_device_binding"](device_code="orphan_device")
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["has_binding"])
+        collector = result["binding"]["collector"]
+        self.assertIsNotNone(collector)
+        self.assertEqual(collector["id"], "unknown-user-uuid")
+        self.assertEqual(collector["name"], "")
+        self.assertEqual(collector["displayName"], "")
+        self.assertIsNotNone(result["binding"]["job"])
+        self.assertEqual(result["binding"]["job"]["id"], 200)
+
+    def test_query_device_binding_by_name_search(self):
+        """query_device_binding 按 device_name 模糊搜索，唯一匹配时返回详情。"""
+        self.mock_caller.list_devices.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": {
+                    "records": [
+                        {
+                            "id": 10, "deviceCode": "abc123",
+                            "deviceName": "MyTestDevice", "deviceTypeName": "Android",
+                            "category": "robot", "status": 1,
+                            "collectorId": None, "jobId": None,
+                        },
+                    ]
+                },
+            },
+            raw_text="...",
+        )
+        self.mock_caller.get_device_by_code.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": {
+                    "id": 10, "deviceCode": "abc123", "deviceName": "MyTestDevice",
+                    "deviceTypeName": "Android", "deviceBodyName": "OnePlus 12",
+                    "category": "robot", "status": 1,
+                    "collectorId": None, "jobId": None,
+                },
+            },
+            raw_text="...",
+        )
+
+        tools = self._setup_collector_tools()
+        result_str = tools["query_device_binding"](device_name="MyTest")
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["found"])
+        self.assertFalse(result["has_binding"])
+        self.assertEqual(result["device"]["deviceCode"], "abc123")
+
+    def test_query_device_binding_user_list_with_results_format(self):
+        """query_device_binding 兼容 metadata.results 格式（list_users_by_name 返回）。"""
+        self.mock_caller.get_device_by_code.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": {
+                    "id": 7, "deviceCode": "dev007", "deviceName": "TestDevice7",
+                    "deviceTypeName": "Android", "deviceBodyName": "Xiaomi 15",
+                    "category": "robot", "status": 1,
+                    "collectorId": "user-777", "jobId": None,
+                },
+            },
+            raw_text="...",
+        )
+        # Strategy 1: get_user 404，落入 list_users_by_name
+        self.mock_caller.get_user.return_value = APIResponse(
+            status_code=404, headers={},
+            body={"message": "用户不存在"},
+            raw_text="...",
+        )
+        self.mock_caller.list_users.return_value = APIResponse(
+            status_code=200, headers={},
+            body={"code": 0, "metadata": {"records": []}},
+            raw_text="...",
+        )
+        self.mock_caller.list_users_by_name.return_value = APIResponse(
+            status_code=200, headers={},
+            body={
+                "code": 0,
+                "metadata": {
+                    "results": [
+                        {
+                            "id": "user-777", "username": "testuser",
+                            "displayName": "测试用户",
+                            "status": 1, "createdAt": "2025-06-01T08:00:00Z",
+                        },
+                    ]
+                },
+            },
+            raw_text="...",
+        )
+
+        tools = self._setup_collector_tools()
+        result_str = tools["query_device_binding"](device_code="dev007")
+        result = json.loads(result_str)
+
+        self.assertTrue(result["success"])
+        collector = result["binding"]["collector"]
+        self.assertIsNotNone(collector)
+        self.assertEqual(collector["id"], "user-777")
+        self.assertEqual(collector["name"], "testuser")
+        self.assertEqual(collector["displayName"], "测试用户")
+
+    def test_query_device_binding_no_params(self):
+        """query_device_binding 不传参数时返回错误。"""
+        tools = self._setup_collector_tools()
+        result_str = tools["query_device_binding"]()
+        result = json.loads(result_str)
+
+        self.assertFalse(result["success"])
+        self.assertIn("device_name", result["error"])
+
 
 class MCPAppCreationTest(unittest.TestCase):
     """测试 MCP 应用创建逻辑。"""
