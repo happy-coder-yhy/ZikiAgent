@@ -104,12 +104,16 @@ def _build_caller(access_token: Optional[str] = None) -> ZataAPICaller:
 def create_app(
     caller: Optional[ZataAPICaller] = None,
     access_token: Optional[str] = None,
+    tool_allowlist: Optional[set] = None,
 ) -> "FastMCP":
     """创建 FastMCP 实例并注册所有工具。
 
     Args:
         caller: 可选，已经认证的 ZataAPICaller。为 None 时从环境变量创建。
         access_token: 可选，直接传入 access_token（优先于环境变量）。
+        tool_allowlist: 可选，工具名集合。提供时仅注册白名单内的工具，
+            用于按角色限制工具可见性（admin/collector）。
+            为 None 时注册全部 28 个 legacy 工具（向后兼容）。
 
     Returns:
         FastMCP: 配置好的 MCP 应用实例。
@@ -126,7 +130,7 @@ def create_app(
     mcp = FastMCP("ziki-platform")
 
     # -------------------------------------------------------------------
-    # 注册各模块工具
+    # 注册各模块工具（按白名单过滤）
     # -------------------------------------------------------------------
     from mcp_server.admin.platform_config import register_tools as register_platform_config
     from mcp_server.admin.scene_task import register_tools as register_scene_task
@@ -137,14 +141,46 @@ def create_app(
     from mcp_server.collector.task_job import register_tools as register_collector_task_job
     from mcp_server.collector.device import register_tools as register_collector_device
 
-    register_platform_config(mcp, caller)
-    register_scene_task(mcp, caller)
-    register_project(mcp, caller)
-    register_task_work(mcp, caller)
-    register_scene_task_job(mcp, caller)
-    register_device(mcp, caller)
-    register_collector_task_job(mcp, caller)
-    register_collector_device(mcp, caller)
+    registrations = [
+        register_platform_config,
+        register_scene_task,
+        register_project,
+        register_task_work,
+        register_scene_task_job,
+        register_device,
+        register_collector_task_job,
+        register_collector_device,
+    ]
+
+    if tool_allowlist is not None:
+        # Role-scoped mode: wrap mcp.tool to filter registrations
+        _original_tool = mcp.tool
+
+        def _filtered_tool(*args, **kwargs):
+            """Decorator that only registers the tool if its name is in the
+            allowlist.  Preserves the original FastMCP tool() signature."""
+            # Resolve the tool name: explicit or the function name
+            tool_name = kwargs.get("name") or (args[0] if args and callable(args[0]) else None)
+            if callable(tool_name):
+                tool_name = getattr(tool_name, "__name__", None)
+            if isinstance(tool_name, str) and tool_name not in tool_allowlist:
+                # Return a no-op decorator that skips registration
+                def _skip(fn):
+                    return fn
+                return _skip
+            return _original_tool(*args, **kwargs)
+
+        mcp.tool = _filtered_tool
+
+        for register in registrations:
+            register(mcp, caller)
+
+        # Restore original tool() for safety
+        mcp.tool = _original_tool
+    else:
+        # Legacy mode: register all 28 tools
+        for register in registrations:
+            register(mcp, caller)
 
     return mcp
 

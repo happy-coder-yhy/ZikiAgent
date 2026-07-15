@@ -9,12 +9,18 @@ Authentication:
     header where <token> is a Zata platform JWT access_token.  The server
     decodes the JWT to extract ``user_id`` for session isolation.
 
+Role:
+    Extracted from JWT claims (``role`` field) or the ``X-Ziki-Role`` header.
+    **MVP 测试身份入口 — 生产环境必须仅从可信 JWT 提取角色。**
+
 Endpoints:
-    POST /chat              — send a message
-    GET  /sessions          — list sessions (current user only)
-    GET  /sessions/:id      — get session history
-    DELETE /sessions/:id    — delete a session
-    GET  /health            — health check (no auth)
+    POST /chat                  — send a message
+    GET  /runs/{run_id}         — get run status
+    GET  /runs/{run_id}/tool-calls — get tool calls for a run
+    GET  /sessions              — list sessions (current user only)
+    GET  /sessions/:id          — get session history
+    DELETE /sessions/:id        — delete a session
+    GET  /health                — health check (no auth)
 """
 
 from __future__ import annotations
@@ -41,8 +47,9 @@ except ImportError:
     pass
 
 from ziki_agent.core import Agent
-from ziki_agent import memory
+from ziki_agent import memory, runs
 from ziki_agent.auth import decode_access_token, TokenDecodeError
+from ziki_agent.roles import validate_role
 
 # ---------------------------------------------------------------------------
 # App
@@ -50,14 +57,24 @@ from ziki_agent.auth import decode_access_token, TokenDecodeError
 
 app = FastAPI(title="Ziki Agent", version="0.3.0")
 
-_agent: Agent | None = None
+_agents: dict[str, Agent] = {}
+_agents_lock = __import__("threading").Lock()
+
+
+def _get_agent_for_role(role: str) -> Agent:
+    """Lazy-create (or retrieve) an Agent instance scoped to *role*."""
+    if role not in _agents:
+        with _agents_lock:
+            if role not in _agents:
+                _agents[role] = Agent(role=role)
+    return _agents[role]
 
 
 @app.on_event("startup")
 async def startup():
-    global _agent
     try:
-        _agent = Agent()
+        # Pre-warm the admin agent (most common case)
+        _get_agent_for_role("admin")
         print("[server] Ziki Agent (Hermes) 初始化成功", file=sys.stderr)
     except Exception as e:
         print(f"[server] Agent 初始化失败: {e}", file=sys.stderr)
@@ -65,8 +82,8 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
-    if _agent:
-        _agent.shutdown()
+    for agent in _agents.values():
+        agent.shutdown()
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +122,46 @@ CurrentUser = Annotated[dict, Depends(get_current_user)]
 
 
 # ---------------------------------------------------------------------------
+# Role extraction (MVP: JWT claim or X-Ziki-Role header)
+# ---------------------------------------------------------------------------
+
+
+async def get_current_role(request: Request, user: dict) -> str:
+    """Extract the user's role for tool allowlist enforcement.
+
+    Priority:
+      1. ``role`` claim in the JWT payload (trusted)
+      2. ``X-Ziki-Role`` header (MVP testing only)
+
+    Raises 403 if the role is missing or invalid.
+    """
+    # 1. Try JWT claims
+    raw_claims = user.get("raw", {})
+    role = raw_claims.get("role")
+    if role:
+        try:
+            return validate_role(role)
+        except ValueError:
+            pass  # fall through to header
+
+    # 2. MVP fallback: X-Ziki-Role header
+    header_role = request.headers.get("X-Ziki-Role")
+    if header_role:
+        try:
+            return validate_role(header_role)
+        except ValueError:
+            raise HTTPException(
+                status_code=403,
+                detail=f"不支持的角色: {header_role}，允许 admin / collector",
+            )
+
+    raise HTTPException(
+        status_code=403,
+        detail="无法确定用户角色，请通过 JWT role 字段或 X-Ziki-Role 头指定",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Models
 # ---------------------------------------------------------------------------
 
@@ -115,8 +172,36 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    run_id: str
     session_id: str
-    response: str
+    status: str
+    answer: str
+
+
+class RunResponse(BaseModel):
+    run_id: str
+    session_id: str
+    user_id: str
+    role: str
+    user_message: str
+    status: str
+    answer: str | None = None
+    error_code: str | None = None
+    started_at: str
+    finished_at: str | None = None
+    duration_ms: int | None = None
+    created_at: str
+
+
+class ToolCallResponse(BaseModel):
+    tool_call_id: str
+    run_id: str
+    tool_name: str
+    status: str
+    error_code: str | None = None
+    started_at: str
+    finished_at: str | None = None
+    duration_ms: int | None = None
 
 
 class SessionInfo(BaseModel):
@@ -131,15 +216,55 @@ class SessionInfo(BaseModel):
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest, user: CurrentUser):
-    if _agent is None:
-        raise HTTPException(status_code=503, detail="Agent 未初始化")
-
+async def chat(req: ChatRequest, user: CurrentUser, request: Request):
     user_id: str = user["user_id"]
     session_id = req.session_id or str(uuid.uuid4())[:8]
-    result = await _agent.run(session_id, req.message, user_id=user_id)
 
-    return ChatResponse(session_id=session_id, response=result.response)
+    # Resolve role from JWT or header
+    role = await get_current_role(request, user)
+
+    # Get or create role-scoped agent
+    try:
+        agent = _get_agent_for_role(role)
+    except Exception:
+        raise HTTPException(status_code=503, detail="Agent 未初始化")
+
+    # Create run record
+    run_id = runs.create_run(
+        session_id=session_id,
+        user_message=req.message,
+        user_id=user_id,
+        role=role,
+    )
+
+    # Record tool calls from agent result
+    try:
+        result = await agent.run(session_id, req.message, user_id=user_id)
+    except Exception:
+        runs.fail_run(run_id, "agent_execution_failed")
+        return ChatResponse(
+            run_id=run_id,
+            session_id=session_id,
+            status="failed",
+            answer="执行失败，请稍后重试",
+        )
+
+    # Persist tool calls extracted from Hermes messages
+    for tc in result.tool_calls:
+        call_id = runs.start_tool_call(run_id, tc["tool_name"])
+        if tc["status"] == "success":
+            runs.complete_tool_call(call_id)
+        else:
+            runs.fail_tool_call(call_id, tc.get("error_code", "tool_execution_failed"))
+
+    runs.complete_run(run_id, result.response)
+
+    return ChatResponse(
+        run_id=run_id,
+        session_id=session_id,
+        status="completed",
+        answer=result.response,
+    )
 
 
 @app.get("/sessions", response_model=list[SessionInfo])
@@ -168,9 +293,30 @@ async def delete_session(session_id: str, user: CurrentUser):
     return {"ok": True, "session_id": session_id}
 
 
+# ---------------------------------------------------------------------------
+# Run query endpoints (MVP development verification)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/runs/{run_id}", response_model=RunResponse)
+async def get_run(run_id: str, user: CurrentUser):
+    """查询 Run 状态 — MVP 开发验证接口。"""
+    data = runs.get_run(run_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Run 不存在")
+    return RunResponse(**data)
+
+
+@app.get("/runs/{run_id}/tool-calls", response_model=list[ToolCallResponse])
+async def get_tool_calls(run_id: str, user: CurrentUser):
+    """查询 Run 的工具调用记录 — MVP 开发验证接口。"""
+    data = runs.list_tool_calls_by_run(run_id)
+    return [ToolCallResponse(**tc) for tc in data]
+
+
 @app.get("/health")
 async def health():
-    return {"status": "ok", "agent_ready": _agent is not None}
+    return {"status": "ok", "agent_ready": len(_agents) > 0}
 
 
 # ---------------------------------------------------------------------------

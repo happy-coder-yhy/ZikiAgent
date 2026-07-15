@@ -2,6 +2,7 @@
 
 from .core import Agent, AgentResult
 from .auth import decode_access_token, TokenDecodeError
-from . import memory
+from . import memory, runs, roles
 
-__all__ = ["Agent", "AgentResult", "decode_access_token", "TokenDecodeError", "memory"]
+__all__ = ["Agent", "AgentResult", "decode_access_token", "TokenDecodeError",
+           "memory", "runs", "roles"]

@@ -41,6 +41,7 @@ SYSTEM_PROMPT = """你叫 Ziki，是 Zata 数字采集平台的 AI 助手。
 class AgentResult:
     response: str = ""
     messages: list[dict[str, Any]] = field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +56,7 @@ def _find_free_port() -> int:
         return s.getsockname()[1]
 
 
-def _start_fastmcp_in_thread() -> int:
+def _start_fastmcp_in_thread(tool_allowlist: set[str] | None = None) -> int:
     """Launch FastMCP SSE server in a daemon thread. Returns the port."""
     port = _find_free_port()
     logger.info("Starting FastMCP SSE on 127.0.0.1:%d", port)
@@ -65,7 +66,7 @@ def _start_fastmcp_in_thread() -> int:
         import uvicorn
 
         caller = _build_caller()
-        mcp = create_app(caller=caller)
+        mcp = create_app(caller=caller, tool_allowlist=tool_allowlist)
         mcp.settings.host = "127.0.0.1"
         mcp.settings.port = port
         app = mcp.streamable_http_app()
@@ -84,11 +85,22 @@ def _start_fastmcp_in_thread() -> int:
 
 
 class Agent:
-    """Ziki Agent — Hermes AIAgent + in-process FastMCP tools."""
+    """Ziki Agent — Hermes AIAgent + in-process FastMCP tools.
 
-    def __init__(self) -> None:
+    Args:
+        role: "admin" or "collector". Controls which MCP tools are registered.
+              Defaults to "admin" for backward compatibility.
+    """
+
+    def __init__(self, role: str = "admin") -> None:
+        self._role = role
+
+        # Resolve tool allowlist for this role
+        from .roles import get_allowlist_for_role
+        tool_allowlist = get_allowlist_for_role(role)
+
         # ---- 1. Start FastMCP in-process on a free port ----
-        self._mcp_port = _start_fastmcp_in_thread()
+        self._mcp_port = _start_fastmcp_in_thread(tool_allowlist=set(tool_allowlist))
         self._mcp_url = f"http://127.0.0.1:{self._mcp_port}/mcp"
 
         # ---- 2. Register MCP server with Hermes (via localhost HTTP) ----
@@ -159,9 +171,17 @@ class Agent:
         final_response = raw_result.get("final_response", "") or ""
         all_messages = raw_result.get("messages", []) or []
 
+        # Extract tool calls from Hermes messages (post-hoc)
+        from .runs import extract_tool_calls_from_messages
+        tool_calls = extract_tool_calls_from_messages(all_messages)
+
         memory.add_messages_batch(session_id, all_messages, user_id=user_id)
 
-        return AgentResult(response=final_response, messages=all_messages)
+        return AgentResult(
+            response=final_response,
+            messages=all_messages,
+            tool_calls=tool_calls,
+        )
 
     def shutdown(self) -> None:
         self._executor.shutdown(wait=True)
