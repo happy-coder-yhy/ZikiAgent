@@ -126,11 +126,20 @@ class Agent:
         )
         self._executor = ThreadPoolExecutor(max_workers=4)
 
-    async def run(self, session_id: str, user_message: str) -> AgentResult:
-        """Execute one conversational turn."""
+    async def run(
+        self, session_id: str, user_message: str, user_id: str = "",
+    ) -> AgentResult:
+        """Execute one conversational turn.
+
+        Args:
+            session_id: conversation identifier.
+            user_message: the user's latest message text.
+            user_id: the authenticated user's UUID (from JWT). Used to
+                     isolate sessions and tag persisted messages.
+        """
 
         from . import memory
-        history = memory.get_history(session_id)
+        history = memory.get_history(session_id, user_id=user_id)
 
         loop = asyncio.get_running_loop()
         try:
@@ -144,13 +153,13 @@ class Agent:
         except Exception as e:
             logger.error("run_conversation failed: %s", e)
             error_msg = f"AI 服务暂时不可用: {e}"
-            memory.add_message(session_id, "assistant", error_msg)
+            memory.add_message(session_id, "assistant", error_msg, user_id=user_id)
             return AgentResult(response=error_msg)
 
         final_response = raw_result.get("final_response", "") or ""
         all_messages = raw_result.get("messages", []) or []
 
-        memory.add_messages_batch(session_id, all_messages)
+        memory.add_messages_batch(session_id, all_messages, user_id=user_id)
 
         return AgentResult(response=final_response, messages=all_messages)
 

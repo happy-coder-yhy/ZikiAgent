@@ -4,12 +4,17 @@ Start:
     python -m ziki_agent.server
     -> http://0.0.0.0:8080
 
+Authentication:
+    All endpoints (except /health) require an ``Authorization: Bearer <token>``
+    header where <token> is a Zata platform JWT access_token.  The server
+    decodes the JWT to extract ``user_id`` for session isolation.
+
 Endpoints:
     POST /chat              — send a message
-    GET  /sessions          — list sessions
+    GET  /sessions          — list sessions (current user only)
     GET  /sessions/:id      — get session history
     DELETE /sessions/:id    — delete a session
-    GET  /health            — health check
+    GET  /health            — health check (no auth)
 """
 
 from __future__ import annotations
@@ -18,8 +23,9 @@ import os
 import sys
 import uuid
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Depends
 from pydantic import BaseModel, Field
 
 # Ensure project root on sys.path
@@ -36,12 +42,13 @@ except ImportError:
 
 from ziki_agent.core import Agent
 from ziki_agent import memory
+from ziki_agent.auth import decode_access_token, TokenDecodeError
 
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="Ziki Agent", version="0.2.0")
+app = FastAPI(title="Ziki Agent", version="0.3.0")
 
 _agent: Agent | None = None
 
@@ -60,6 +67,41 @@ async def startup():
 async def shutdown():
     if _agent:
         _agent.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# Auth dependency
+# ---------------------------------------------------------------------------
+
+
+async def get_current_user(request: Request) -> dict:
+    """FastAPI dependency — extract and decode the Bearer token.
+
+    Returns a dict with ``user_id``, ``name``, ``displayName``.
+    Raises 401 if the header is missing or the token is invalid.
+    """
+    auth_header: str | None = request.headers.get("Authorization")
+    if not auth_header:
+        raise HTTPException(
+            status_code=401,
+            detail="缺少 Authorization 头，请提供 Bearer <access_token>",
+        )
+
+    scheme, _, token = auth_header.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization 头格式错误，期望 Bearer <access_token>",
+        )
+
+    try:
+        return decode_access_token(token)
+    except TokenDecodeError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+
+# Type alias for route signatures
+CurrentUser = Annotated[dict, Depends(get_current_user)]
 
 
 # ---------------------------------------------------------------------------
@@ -89,29 +131,40 @@ class SessionInfo(BaseModel):
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest):
+async def chat(req: ChatRequest, user: CurrentUser):
     if _agent is None:
         raise HTTPException(status_code=503, detail="Agent 未初始化")
 
+    user_id: str = user["user_id"]
     session_id = req.session_id or str(uuid.uuid4())[:8]
-    result = await _agent.run(session_id, req.message)
+    result = await _agent.run(session_id, req.message, user_id=user_id)
 
     return ChatResponse(session_id=session_id, response=result.response)
 
 
 @app.get("/sessions", response_model=list[SessionInfo])
-async def list_sessions():
-    return [SessionInfo(**s) for s in memory.list_sessions()]
+async def list_sessions(user: CurrentUser):
+    user_id: str = user["user_id"]
+    return [SessionInfo(**s) for s in memory.list_sessions(user_id=user_id)]
 
 
 @app.get("/sessions/{session_id}/history")
-async def get_history(session_id: str):
-    return {"session_id": session_id, "messages": memory.get_history(session_id)}
+async def get_history(session_id: str, user: CurrentUser):
+    user_id: str = user["user_id"]
+    if not memory.session_belongs_to(session_id, user_id):
+        raise HTTPException(status_code=403, detail="无权访问此会话")
+    return {
+        "session_id": session_id,
+        "messages": memory.get_history(session_id, user_id=user_id),
+    }
 
 
 @app.delete("/sessions/{session_id}")
-async def delete_session(session_id: str):
-    memory.clear_session(session_id)
+async def delete_session(session_id: str, user: CurrentUser):
+    user_id: str = user["user_id"]
+    if not memory.session_belongs_to(session_id, user_id):
+        raise HTTPException(status_code=403, detail="无权删除此会话")
+    memory.clear_session(session_id, user_id=user_id)
     return {"ok": True, "session_id": session_id}
 
 
