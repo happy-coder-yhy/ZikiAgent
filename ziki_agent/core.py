@@ -24,13 +24,68 @@ logger = logging.getLogger("agent")
 # System prompt
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = """你叫 Ziki，是 Zata 数字采集平台的 AI 助手。
 
-规则：
+def _build_system_prompt(role: str, tool_allowlist: frozenset[str]) -> str:
+    """Construct a role-aware system prompt that tells the model exactly
+    what it can and cannot do.
+
+    The allowlist acts as a hard mechanism (tools literally aren't registered),
+    but without the prompt the model doesn't know its boundaries — it will
+    try to help by searching files or asking the user instead of refusing
+    outright.  This prompt provides soft awareness so the model can:
+      - politely explain *why* it can't fulfill a request
+      - avoid wasting turns trying non-existent tools
+    """
+
+    tool_list = "\n".join(f"  - {t}" for t in sorted(tool_allowlist))
+
+    if role == "admin":
+        role_block = f"""## 你的角色：管理员（只读）
+
+你拥有以下只读查询工具，可以查询平台数据但不能创建或修改任何内容：
+{tool_list}
+
+**重要限制** — 你**没有**以下权限：
+- ❌ 创建/修改/删除项目、任务、作业
+- ❌ 创建场景任务、发布任务
+- ❌ 绑定/解绑设备或采集器
+- ❌ 任何写操作或修改操作
+
+当用户要求你执行上述操作时，明确告知：
+"抱歉，当前账号为只读权限，无法执行此操作。如需帮助，请联系管理员。"
+不要尝试搜索文件或通过其他方式绕过 — 你的工具列表已经限定了你能做的事情。"""
+
+    elif role == "collector":
+        role_block = f"""## 你的角色：采集人员（只读）
+
+你拥有以下只读查询工具，仅能查看与自己相关的采集任务和设备信息：
+{tool_list}
+
+**重要限制** — 你**没有**以下权限：
+- ❌ 查看项目列表、平台配置
+- ❌ 创建/管理任务、场景、作业
+- ❌ 查看其他用户的任务或设备
+- ❌ 任何管理操作
+
+当用户要求你执行上述操作时，明确告知：
+"抱歉，当前账号为采集人员权限，无法执行此操作。如需帮助，请联系管理员。"
+不要尝试搜索文件或通过其他方式绕过 — 你的工具列表已经限定了你能做的事情。"""
+
+    else:
+        role_block = f"""## 你的角色：{role}
+可用工具：
+{tool_list}"""
+
+    return f"""你叫 Ziki，是 Zata 数字采集平台的 AI 助手。
+
+{role_block}
+
+## 通用规则
 1. 使用提供的工具来查询平台数据，不要编造信息
 2. 当用户意图不明确时，主动询问澄清
 3. 以中文回复用户
-4. 回答简洁明了，避免冗长"""
+4. 回答简洁明了，避免冗长
+5. 你的可用工具是固定的 — 如果某个操作没有对应工具，说明你没有该权限，直接拒绝即可"""
 
 # ---------------------------------------------------------------------------
 # Result
@@ -134,7 +189,7 @@ class Agent:
             provider=provider,
             model=model,
             quiet_mode=True,
-            ephemeral_system_prompt=SYSTEM_PROMPT,
+            ephemeral_system_prompt=_build_system_prompt(role, tool_allowlist),
         )
         self._executor = ThreadPoolExecutor(max_workers=4)
 
