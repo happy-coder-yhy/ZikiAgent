@@ -9,9 +9,7 @@ from ApiCaller.modules.api_caller import _extract_metadata_items
 
 # 设备状态映射
 _STATUS_MAP = {0: "离线", 1: "在线"}
-# 设备类别中文标签
 _CATEGORY_MAP = {"robot": "真机", "video": "视频"}
-# 采集状态映射（与 task_job.py 保持一致）
 _COLLECT_STATUS_MAP = {0: "未分配", 1: "已分配", 2: "已领取"}
 _REVIEW_STATUS_MAP = {0: "未分配", 1: "已分配"}
 
@@ -156,10 +154,12 @@ def register_tools(mcp, caller) -> None:
         device_name: str = "",
         device_code: str = "",
     ) -> str:
-        """查询指定设备的绑定情况 — 被绑了哪些采集员和作业。
+        """查询指定设备的绑定作业信息。
 
-        通过设备名称或设备编码查找设备，返回该设备当前绑定的采集员信息
-        （含用户名）和作业信息（含作业名称、状态）。
+        通过设备名称或设备编码查找设备，返回该设备当前绑定的作业信息
+        （含作业描述、计划采集数、采集/审核状态、进度）。
+
+        注意：采集员角色无权查询其他用户信息，因此不返回采集员绑定详情。
 
         Args:
             device_name: 设备名称（支持模糊匹配），如 "agentTest"、"dunjia"
@@ -302,141 +302,10 @@ def register_tools(mcp, caller) -> None:
                 "statusLabel": _STATUS_MAP.get(status_raw, "未知"),
             }
 
-            # ---- 充实采集员信息 ----
-            collector_info = None
-            cid = device.get("collectorId")
-            if cid:
-                collector_info = {"id": cid}
-
-                # 辅助：从单个用户对象（dict）提取 name / displayName
-                def _fill_from_user(u: dict) -> bool:
-                    """从单个用户 dict 填充 collector_info。返回 True 表示已匹配。"""
-                    if not isinstance(u, dict):
-                        return False
-                    if str(u.get("id") or "") != str(cid):
-                        return False
-                    collector_info["name"] = (
-                        u.get("username") or u.get("userName")
-                        or u.get("name") or u.get("displayName") or ""
-                    )
-                    collector_info["displayName"] = (
-                        u.get("displayName") or u.get("name") or ""
-                    )
-                    collector_info["status"] = (
-                        u.get("status") if u.get("status") is not None else ""
-                    )
-                    collector_info["createdAt"] = u.get("createdAt") or ""
-                    return True
-
-                # 辅助：从用户列表中按 ID 匹配
-                def _match_user(users: list[dict]) -> bool:
-                    for u in users:
-                        if _fill_from_user(u):
-                            return True
-                    return False
-
-                # 辅助：从 API 响应中提取用户列表（多种格式兼容）
-                def _extract_users(body: dict) -> list[dict]:
-                    """从 RBAC 用户查询响应中提取用户列表。"""
-                    if not isinstance(body, dict):
-                        return []
-                    meta = body.get("metadata")
-                    if isinstance(meta, dict):
-                        # 格式 1a: metadata.results
-                        results = meta.get("results")
-                        if isinstance(results, list):
-                            return results
-                        # 格式 1b: metadata.records
-                        records = meta.get("records")
-                        if isinstance(records, list):
-                            return records
-                    # 格式 2: _extract_metadata_items 兜底
-                    items = _extract_metadata_items(body)
-                    if items:
-                        return items
-                    # 格式 3: 某些 RBAC 版本将用户列表 JSON 编码在 message 中
-                    msg = body.get("message")
-                    if isinstance(msg, list):
-                        return msg
-                    if isinstance(msg, str):
-                        import json as _json
-                        try:
-                            parsed = _json.loads(msg)
-                            return parsed if isinstance(parsed, list) else []
-                        except Exception:
-                            pass
-                    return []
-
-                # 辅助：从 get_user 单用户响应中提取用户对象
-                def _extract_single_user(body: dict) -> dict | None:
-                    """从 RBAC 单用户查询响应中提取用户 dict。"""
-                    if not isinstance(body, dict):
-                        return None
-                    # metadata 直接就是用户对象
-                    meta = body.get("metadata")
-                    if isinstance(meta, dict) and meta.get("id"):
-                        return meta
-                    # metadata 为空时，body 本身可能是用户对象
-                    if body.get("id"):
-                        return body
-                    return None
-
-                # ---- 策略 1：直接按 ID 查用户（最可靠） ----
-                try:
-                    user_resp = caller.get_user(user_id=cid)
-                    if user_resp.status_code == 200:
-                        user = _extract_single_user(user_resp.body)
-                        if user:
-                            _fill_from_user(user)
-                except Exception:
-                    pass
-
-                # ---- 策略 2：全量拉取用户列表，从中按 ID 匹配 ----
-                if not collector_info.get("name"):
-                    try:
-                        users_resp = caller.list_users(pageNum=1, pageSize=500)
-                        if users_resp.status_code == 200:
-                            users = _extract_users(users_resp.body)
-                            if users:
-                                _match_user(users)
-                    except Exception:
-                        pass
-
-                # ---- 策略 3：匹配当前登录用户 ----
-                if not collector_info.get("name"):
-                    try:
-                        me_resp = caller.userinfo()
-                        if me_resp.status_code == 200:
-                            me_body = me_resp.body
-                            me = (
-                                me_body.get("metadata") or me_body
-                                if isinstance(me_body, dict)
-                                else {}
-                            )
-                            _fill_from_user(me)
-                    except Exception:
-                        pass
-
-                # ---- 策略 4：通过 list_users_by_name 模糊搜索 ----
-                if not collector_info.get("name") and isinstance(cid, str) and len(cid) >= 3:
-                    try:
-                        by_name_resp = caller.list_users_by_name(name=cid[:8])
-                        if by_name_resp.status_code == 200:
-                            users = _extract_users(by_name_resp.body)
-                            _match_user(users)
-                    except Exception:
-                        pass
-
-                # 若仍未匹配，保留 id 并将名称字段置空
-                if not collector_info.get("name"):
-                    collector_info["name"] = ""
-                    collector_info["displayName"] = ""
-
             # ---- 充实作业信息 ----
             job_info = None
             jid = device.get("jobId")
             if jid is not None:
-                job_info = {"id": jid}
                 try:
                     job_resp = caller.get_job(jobId=int(jid))
                     if job_resp.status_code == 200:
@@ -449,44 +318,40 @@ def register_tools(mcp, caller) -> None:
                         if isinstance(job, dict):
                             raw_cs = job.get("collectStatus")
                             raw_rs = job.get("reviewStatus")
-                            job_info["description"] = job.get("description")
-                            job_info["taskId"] = job.get("taskId")
-                            job_info["collectStatus"] = raw_cs
-                            job_info["collectStatusLabel"] = _COLLECT_STATUS_MAP.get(raw_cs, "未知")
-                            job_info["reviewStatus"] = raw_rs
-                            job_info["reviewStatusLabel"] = _REVIEW_STATUS_MAP.get(raw_rs, "未知")
                             progress = job.get("progress") or {}
-                            if progress:
-                                job_info["progress"] = {
+                            job_info = {
+                                "description": job.get("description"),
+                                "planCollectCount": job.get("requiredRepeat"),
+                                "collectStatus": raw_cs,
+                                "collectStatusLabel": _COLLECT_STATUS_MAP.get(raw_cs, "未知"),
+                                "reviewStatus": raw_rs,
+                                "reviewStatusLabel": _REVIEW_STATUS_MAP.get(raw_rs, "未知"),
+                                "progress": {
                                     k: v
                                     for k, v in progress.items()
                                     if k in (
-                                        "normalCollect",
-                                        "normalCollectTotal",
+                                        "normalCollect", "normalCollectTotal",
                                         "normalReview",
-                                        "abnormalCollect",
-                                        "abnormalCollectTotal",
+                                        "abnormalCollect", "abnormalCollectTotal",
                                         "abnormalReview",
                                     )
-                                }
+                                },
+                            }
                 except Exception:
                     pass  # 作业查找失败不影响主流程
 
             # ---- 判断绑定状态 ----
-            has_binding = bool(collector_info or job_info)
-            binding_parts = []
-            if collector_info:
-                name = collector_info.get("name") or collector_info.get("displayName") or "未知用户"
-                binding_parts.append(f"采集员 {name}")
+            has_binding = bool(job_info)
+            message_parts = []
             if job_info:
-                job_label = job_info.get("description") or f"作业#{job_info['id']}"
-                binding_parts.append(f"作业「{job_label}」")
+                job_label = job_info.get("description") or "未知作业"
+                message_parts.append(f"作业「{job_label}」")
 
             message = (
                 f"设备「{device_info.get('deviceName') or device_info.get('deviceCode')}」"
-                f"当前绑定：{'、'.join(binding_parts)}"
+                f"当前绑定：{'、'.join(message_parts)}"
                 if has_binding
-                else f"设备「{device_info.get('deviceName') or device_info.get('deviceCode')}」当前未绑定任何采集员或作业"
+                else f"设备「{device_info.get('deviceName') or device_info.get('deviceCode')}」当前未绑定任何作业"
             )
 
             return json.dumps(
@@ -495,7 +360,6 @@ def register_tools(mcp, caller) -> None:
                     "found": True,
                     "device": device_info,
                     "binding": {
-                        "collector": collector_info,
                         "job": job_info,
                     },
                     "has_binding": has_binding,

@@ -2337,6 +2337,79 @@ class ZataAPICaller(APICaller):
             headers["Authorization"] = f"Bearer {self._access_token}"
         return headers
 
+    def resolve_user_info(self, user_id: str) -> dict | None:
+        """按用户 ID 解析基本用户信息（跨角色兼容）。
+
+        依次尝试多种策略，任一命中即返回。即使调用方仅持有
+        非管理员 token，也能尽可能解析出 displayName / name / createTime。
+
+        参数:
+            user_id (str): 用户 ID（UUID 格式）。
+
+        返回:
+            dict | None: 包含 ``displayName``, ``name``, ``createTime``
+            的字典；全部策略未命中时返回 None。
+        """
+        if not user_id:
+            return None
+
+        # ---- 辅助：从单个用户对象提取字段 ----
+        def _extract(u: dict) -> dict:
+            return {
+                "displayName": u.get("displayName") or "",
+                "name": u.get("name") or u.get("username") or u.get("userName") or "",
+                "createTime": u.get("createTime") or u.get("createdAt") or "",
+            }
+
+        # ---- 策略 1：直接按 ID 查用户（管理员权限，但无副作用） ----
+        try:
+            resp = self.get_user(user_id=user_id)
+            if resp.status_code == 200 and isinstance(resp.body, dict):
+                user = resp.body.get("metadata") or resp.body
+                if isinstance(user, dict) and str(user.get("id") or "") == str(user_id):
+                    return _extract(user)
+        except Exception:
+            pass
+
+        # ---- 策略 2：匹配当前登录用户（所有角色可用） ----
+        try:
+            resp = self.userinfo()
+            if resp.status_code == 200 and isinstance(resp.body, dict):
+                info = resp.body.get("metadata") or resp.body
+                if isinstance(info, dict) and str(info.get("id") or "") == str(user_id):
+                    return _extract(info)
+        except Exception:
+            pass
+
+        # ---- 策略 3：全量拉取用户列表按 ID 匹配（管理员权限） ----
+        try:
+            resp = self.list_users(pageNum=1, pageSize=500)
+            if resp.status_code == 200 and isinstance(resp.body, dict):
+                meta = resp.body.get("metadata")
+                users: list = []
+                if isinstance(meta, dict):
+                    users = meta.get("results") or meta.get("records") or []
+                for u in users:
+                    if isinstance(u, dict) and str(u.get("id") or "") == str(user_id):
+                        return _extract(u)
+        except Exception:
+            pass
+
+        # ---- 策略 4：通过 list_users_by_name 搜索（所有角色可用） ----
+        # 尝试用 user_id 的前 8 位作为搜索词（某些平台版本支持）
+        try:
+            resp = self.list_users_by_name(name=user_id[:8])
+            if resp.status_code == 200 and isinstance(resp.body, dict):
+                from ApiCaller.modules.api_caller import _extract_metadata_items
+                users = _extract_metadata_items(resp.body) if resp.body else []
+                for u in users:
+                    if isinstance(u, dict) and str(u.get("id") or "") == str(user_id):
+                        return _extract(u)
+        except Exception:
+            pass
+
+        return None
+
     @classmethod
     def _rbac_path(cls, path: str) -> str:
         """拼接 zata-rbac 服务路径。

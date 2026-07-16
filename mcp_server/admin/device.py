@@ -96,16 +96,98 @@ def register_tools(mcp, caller) -> None:
         
     @mcp.tool()
     def device_detail(name: str = "", device_code: str = "") -> str:
-        """查询设备详细信息。
+        """查询设备详细信息（含绑定的采集员和作业）。
 
         先通过设备名称搜索匹配设备，获取设备编码后再查询完整详情。
         若匹配到多台同名设备，则列出所有匹配项供用户选择。
         也可直接传入 device_code 跳过搜索，直接获取详情。
 
+        返回的设备信息含绑定的采集员（displayName, name, createdAt）和
+        作业（description, planCollectCount）。
+
         Args:
             name: 设备名称（支持模糊匹配），如 "agentTest"、"dunjia"
             device_code: 设备编码，传入后直接查询详情，跳过名称搜索
         """
+
+        # ---- 内部：充实绑定的采集员和作业信息 ----
+        def _enrich_device(device: dict) -> dict:
+            """为设备补充绑定的采集员和作业信息。"""
+            result = {
+                "id": device.get("id"),
+                "deviceCode": device.get("deviceCode"),
+                "deviceName": device.get("deviceName"),
+                "deviceTypeName": device.get("deviceTypeName"),
+                "deviceBodyName": device.get("deviceBodyName"),
+                "category": device.get("category"),
+                "categoryLabel": (
+                    "真机" if str(device.get("category") or "").lower() == "robot"
+                    else "视频" if str(device.get("category") or "").lower() == "video"
+                    else str(device.get("category") or "")
+                ),
+                "status": device.get("status"),
+                "statusLabel": "在线" if device.get("status") == 1 else "离线",
+                "lastOnlineTime": device.get("lastOnlineTime"),
+                "createdAt": device.get("createdAt"),
+                "updatedAt": device.get("updatedAt"),
+                "collector": None,
+                "job": None,
+            }
+
+            # ---- 充实采集员（仅返回 displayName, name, createTime） ----
+            cid = device.get("collectorId")
+            if cid:
+                collector_info = caller.resolve_user_info(cid)
+                if collector_info:
+                    result["collector"] = {
+                        "displayName": collector_info["displayName"],
+                        "name": collector_info["name"],
+                        "createdAt": collector_info["createTime"],
+                    }
+
+            # ---- 充实作业信息 ----
+            jid = device.get("jobId")
+            if jid is not None:
+                try:
+                    job_resp = caller.get_job(jobId=int(jid))
+                    if job_resp.status_code == 200:
+                        jbody = job_resp.body
+                        job = (
+                            jbody.get("metadata") or jbody
+                            if isinstance(jbody, dict)
+                            else {}
+                        )
+                        if isinstance(job, dict):
+                            raw_cs = job.get("collectStatus")
+                            raw_rs = job.get("reviewStatus")
+                            progress = job.get("progress") or {}
+                            result["job"] = {
+                                "description": job.get("description"),
+                                "planCollectCount": job.get("requiredRepeat"),
+                                "collectStatus": raw_cs,
+                                "collectStatusLabel": (
+                                    {0: "未分配", 1: "已分配", 2: "已领取"}.get(raw_cs, "未知")
+                                ),
+                                "reviewStatus": raw_rs,
+                                "reviewStatusLabel": (
+                                    {0: "未分配", 1: "已分配"}.get(raw_rs, "未知")
+                                ),
+                                "progress": {
+                                    k: v
+                                    for k, v in progress.items()
+                                    if k in (
+                                        "normalCollect", "normalCollectTotal",
+                                        "normalReview",
+                                        "abnormalCollect", "abnormalCollectTotal",
+                                        "abnormalReview",
+                                    )
+                                },
+                            }
+                except Exception:
+                    pass
+
+            return result
+
         try:
             # ---- 模式 1：直接通过 device_code 查询 ----
             if device_code:
@@ -120,8 +202,9 @@ def register_tools(mcp, caller) -> None:
                     detail = body.get("metadata") or body
                 else:
                     detail = body
+                enriched = _enrich_device(detail) if isinstance(detail, dict) else detail
                 return json.dumps(
-                    {"success": True, "found": True, "device": detail},
+                    {"success": True, "found": True, "device": enriched},
                     ensure_ascii=False, indent=2,
                 )
 
@@ -164,7 +247,7 @@ def register_tools(mcp, caller) -> None:
                     ensure_ascii=False, indent=2,
                 )
 
-            # ---- 唯一匹配：直接返回详情 ----
+            # ---- 唯一匹配：返回详情 ----
             if len(devices) == 1:
                 code = devices[0].get("deviceCode") or ""
                 if not code:
@@ -183,8 +266,9 @@ def register_tools(mcp, caller) -> None:
                     detail = body.get("metadata") or body
                 else:
                     detail = body
+                enriched = _enrich_device(detail) if isinstance(detail, dict) else detail
                 return json.dumps(
-                    {"success": True, "found": True, "device": detail},
+                    {"success": True, "found": True, "device": enriched},
                     ensure_ascii=False, indent=2,
                 )
 

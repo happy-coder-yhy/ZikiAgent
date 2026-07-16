@@ -82,7 +82,6 @@ Params:
 | `categoryLabel` | string | 设备类别中文标签 |
 | `status` | int | 设备状态码（0=离线, 1=在线） |
 | `statusLabel` | string | 设备状态中文标签 |
-| `collectorId` | string | 绑定的采集员 ID |
 | `jobId` | int | 绑定的作业 ID（可能为空） |
 
 ---
@@ -92,10 +91,8 @@ Params:
 1. 用户表达查看自己设备绑定情况的意图（如"我绑定了哪个设备？"）
 2. **无需查找 collector_id** — 直接调用 `query_my_device()`（不传参），工具自动获取当前用户身份
 3. 解读返回结果，向用户汇报：
-   - 若 `bound=true`：展示设备名称、型号、在线状态、绑定的作业等
+   - 若 `bound=true`：展示设备名称、型号、在线状态、绑定的作业等。禁止提及采集员绑定状态。
    - 若 `bound=false`：告知用户"您当前暂未绑定任何设备"
-
-> **仅在查询其他采集员时**才需要显式传入 `collector_id`：先通过 `search_user(name="用户名")` 查询 ID，再调用 `query_my_device(collector_id="...")`。
 
 ---
 
@@ -158,9 +155,11 @@ Params:
 
 ---
 
-## query_device_binding — 查询指定设备绑定情况
+## query_device_binding — 查询指定设备绑定作业
 
-查询**指定设备**当前绑定的采集员和作业详情。
+查询**指定设备**当前绑定的作业详情。
+
+**⚠️ 重要：本工具不返回采集员绑定信息。回答时禁止提及采集员绑定状态（包括"未绑定采集员"、"无采集员"等），仅汇报作业绑定情况。**
 
 ### 调用方式
 
@@ -209,29 +208,19 @@ Params:
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `collector` | object\|null | 绑定的采集员信息（见下方），无绑定时为 null |
 | `job` | object\|null | 绑定的作业信息（见下方），无绑定时为 null |
-
-#### binding.collector（采集员信息）
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `id` | string | 采集员用户 ID（始终返回） |
-| `name` | string | 采集员用户名（可能为空字符串，仅能从用户列表匹配到 ID 时） |
-| `displayName` | string | 采集员显示名称（可能为空字符串） |
-| `status` | int\|string | 采集员状态（来自用户列表匹配） |
-| `createdAt` | string | 采集员创建时间（来自用户列表匹配） |
 
 #### binding.job（作业信息）
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `id` | int | 作业 ID |
-| `name` | string | 作业名称 |
 | `description` | string | 作业描述 |
+| `planCollectCount` | int | 计划采集条数 |
 | `collectStatus` | int | 采集状态码（0=未分配, 1=已分配, 2=已领取） |
-| `taskId` | int | 所属任务 ID |
-| `progress` | object | 作业进度（normalCollect, normalCollectTotal 等） |
+| `collectStatusLabel` | string | 采集状态中文标签 |
+| `reviewStatus` | int | 审核状态码（0=未分配, 1=已分配） |
+| `reviewStatusLabel` | string | 审核状态中文标签 |
+| `progress` | object | 进度详情（normalCollect, normalCollectTotal, normalReview, abnormalCollect, abnormalCollectTotal, abnormalReview） |
 
 ### 查询工作流
 
@@ -265,17 +254,13 @@ Params:
     "statusLabel": "在线"
   },
   "binding": {
-    "collector": {
-      "id": "6e1465a8-...",
-      "name": "zhangsan",
-      "displayName": "张三"
-    },
     "job": {
-      "id": 12345,
-      "name": "数据采集-第一批",
       "description": "采集首页数据",
+      "planCollectCount": 100,
       "collectStatus": 2,
-      "taskId": 261,
+      "collectStatusLabel": "已领取",
+      "reviewStatus": 1,
+      "reviewStatusLabel": "已分配",
       "progress": {
         "normalCollect": 45,
         "normalCollectTotal": 100
@@ -283,7 +268,7 @@ Params:
     }
   },
   "has_binding": true,
-  "message": "设备「agentTest」当前绑定：采集员 zhangsan、作业「数据采集-第一批」"
+  "message": "设备「agentTest」当前绑定：作业「数据采集-第一批」"
 }
 ```
 
@@ -542,15 +527,8 @@ Params:
 ## 注意事项
 
 - `device_name` 支持模糊匹配，可能返回多个结果；`device_code` 精确匹配唯一设备
-- `binding.collector.id` 始终返回设备绑定的采集员 ID，即使无法从用户列表匹配到名称
-- `binding.collector.name` 和 `displayName` 通过以下策略依次获取（任一命中即停止）：
-  1. 直接按用户 ID 查询 RBAC `/users/{id}` 接口
-  2. 全量拉取用户列表按 ID 匹配
-  3. 匹配当前登录用户
-  4. 按用户名称模糊搜索
-  全部策略未命中时 name / displayName 为空字符串，但 id 字段保留
 - `binding.job` 为 `null` 表示设备未绑定作业
-- `has_binding` 为 `false` 表示设备当前无任何绑定，`collector` 和 `job` 均为 `null`
+- `has_binding` 为 `false` 表示设备当前未绑定任何作业
 - `bind_job_to_device` 只能绑定采集员**自己有权限的作业**（已领取或被分配到的）
 - `bind_self_to_device` 会保留设备的当前作业绑定，仅更换采集员
 - `bind_self_to_device` 是幂等操作：已绑定到自己时直接返回成功，不会重复绑定

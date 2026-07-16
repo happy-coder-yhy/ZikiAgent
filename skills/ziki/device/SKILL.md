@@ -78,6 +78,45 @@ Params（二选一）:
   - device_code: string  — 设备编码，直接查询详情
 ```
 
+### 返回字段
+
+#### device（设备基本信息）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | int | 设备 ID |
+| `deviceCode` | string | 设备编码（唯一标识） |
+| `deviceName` | string | 设备名称 |
+| `deviceTypeName` | string | 设备类型名称 |
+| `deviceBodyName` | string | 设备机身型号 |
+| `category` | string | 设备类别（robot/video） |
+| `categoryLabel` | string | 设备类别中文标签（真机/视频） |
+| `status` | int | 状态码（0=离线, 1=在线） |
+| `statusLabel` | string | 状态中文标签 |
+| `lastOnlineTime` | string | 最后在线时间 |
+| `createdAt` | string | 创建时间 |
+| `updatedAt` | string | 更新时间 |
+
+#### device.collector（绑定的采集员，未绑定时为 null）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `displayName` | string | 采集员显示名称 |
+| `name` | string | 采集员用户名 |
+| `createdAt` | string | 采集员账号创建时间（非设备绑定时间） |
+
+#### device.job（绑定的作业，未绑定时为 null）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `description` | string | 作业描述 |
+| `planCollectCount` | int | 计划采集条数 |
+| `collectStatus` | int | 采集状态码（0=未分配, 1=已分配, 2=已领取） |
+| `collectStatusLabel` | string | 采集状态中文标签 |
+| `reviewStatus` | int | 审核状态码（0=未分配, 1=已分配） |
+| `reviewStatusLabel` | string | 审核状态中文标签 |
+| `progress` | object | 进度详情（normalCollect, normalCollectTotal, normalReview, abnormalCollect, abnormalCollectTotal, abnormalReview） |
+
 ### 查询工作流
 
 1. 用户提出查看某设备详情（如"帮我查一下 agentTest 设备的详细信息"）
