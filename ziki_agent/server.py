@@ -10,8 +10,9 @@ Authentication:
     decodes the JWT to extract ``user_id`` for session isolation.
 
 Role:
-    Extracted from JWT claims (``role`` field) or the ``X-Ziki-Role`` header.
-    **MVP 测试身份入口 — 生产环境必须仅从可信 JWT 提取角色。**
+    Extracted from JWT claims (``role`` field).  The ``X-Ziki-Role`` header
+    fallback is DISABLED by default; set ``ZIKI_ALLOW_ROLE_HEADER=1`` to
+    enable it for MVP testing only.
 
 Endpoints:
     POST /chat                  — send a message
@@ -81,13 +82,21 @@ async def startup():
     except Exception as e:
         print(f"[server] Agent 初始化失败: {e}", file=sys.stderr)
 
-    # Clean up any expired confirmation actions from previous runs
+    # Clean up expired confirmation actions from previous runs
     try:
         count = confirmation.cleanup_expired()
         if count:
             print(f"[server] 清理了 {count} 条过期确认操作", file=sys.stderr)
     except Exception as e:
         print(f"[server] 清理过期确认操作失败: {e}", file=sys.stderr)
+
+    # Clean up stuck runs (left as 'running' from crashed/previous process)
+    try:
+        count = runs.cleanup_stuck_runs()
+        if count:
+            print(f"[server] 清理了 {count} 条卡住的 Run", file=sys.stderr)
+    except Exception as e:
+        print(f"[server] 清理卡住 Run 失败: {e}", file=sys.stderr)
 
 
 @app.on_event("shutdown")
@@ -140,8 +149,9 @@ async def get_current_role(request: Request, user: dict) -> str:
     """Extract the user's role for tool allowlist enforcement.
 
     Priority:
-      1. ``role`` claim in the JWT payload (trusted)
-      2. ``X-Ziki-Role`` header (MVP testing only)
+      1. ``role`` claim in the JWT payload (trusted — always enabled)
+      2. ``X-Ziki-Role`` header (MVP testing — only when
+         ``ZIKI_ALLOW_ROLE_HEADER=1`` is set)
 
     Raises 403 if the role is missing or invalid.
     """
@@ -152,22 +162,26 @@ async def get_current_role(request: Request, user: dict) -> str:
         try:
             return validate_role(role)
         except ValueError:
-            pass  # fall through to header
-
-    # 2. MVP fallback: X-Ziki-Role header
-    header_role = request.headers.get("X-Ziki-Role")
-    if header_role:
-        try:
-            return validate_role(header_role)
-        except ValueError:
             raise HTTPException(
                 status_code=403,
-                detail=f"不支持的角色: {header_role}，允许 admin / collector",
+                detail=f"不支持的角色: {role}，允许 admin / collector",
             )
+
+    # 2. MVP fallback: X-Ziki-Role header (DISABLED by default)
+    if os.environ.get("ZIKI_ALLOW_ROLE_HEADER") == "1":
+        header_role = request.headers.get("X-Ziki-Role")
+        if header_role:
+            try:
+                return validate_role(header_role)
+            except ValueError:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"不支持的角色: {header_role}，允许 admin / collector",
+                )
 
     raise HTTPException(
         status_code=403,
-        detail="无法确定用户角色，请通过 JWT role 字段或 X-Ziki-Role 头指定",
+        detail="无法确定用户角色，请确保 JWT 包含 role 字段",
     )
 
 
@@ -179,6 +193,10 @@ async def get_current_role(request: Request, user: dict) -> str:
 class ChatRequest(BaseModel):
     session_id: str = Field(default="", description="会话 ID，留空则新建")
     message: str = Field(..., min_length=1, description="用户消息")
+    idempotency_key: str = Field(
+        default="",
+        description="幂等键，同一 key 的重复请求返回已有结果，防止重复创建",
+    )
 
 
 class ChatResponse(BaseModel):
@@ -372,6 +390,19 @@ async def chat(req: ChatRequest, user: CurrentUser, request: Request):
     if short_circuit is not None:
         return ChatResponse(**short_circuit)
 
+    # ---- Idempotency check: if this exact request was already processed, return cached result ----
+    if req.idempotency_key:
+        cached = runs.find_run_by_idempotency_key(
+            user_id, session_id, req.idempotency_key,
+        )
+        if cached:
+            return ChatResponse(
+                run_id=cached["run_id"],
+                session_id=session_id,
+                status=cached["status"],
+                answer=cached["answer"] or "",
+            )
+
     # Get or create role-scoped agent
     try:
         agent = _get_agent_for_role(role)
@@ -384,6 +415,7 @@ async def chat(req: ChatRequest, user: CurrentUser, request: Request):
         user_message=req.message,
         user_id=user_id,
         role=role,
+        idempotency_key=req.idempotency_key,
     )
 
     # Record tool calls from agent result
@@ -450,6 +482,24 @@ async def chat_stream(req: ChatRequest, user: CurrentUser, request: Request):
             },
         )
 
+    # ---- Idempotency check: if this exact request was already processed, return cached result ----
+    if req.idempotency_key:
+        cached = runs.find_run_by_idempotency_key(
+            user_id, session_id, req.idempotency_key,
+        )
+        if cached:
+            async def _cached_gen():
+                yield f"data: {json.dumps({'type': 'done', 'run_id': cached['run_id'], 'session_id': session_id, 'answer': cached['answer'] or ''}, ensure_ascii=False)}\n\n"
+            return StreamingResponse(
+                _cached_gen(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",
+                },
+            )
+
     try:
         agent = _get_agent_for_role(role)
     except Exception:
@@ -460,11 +510,15 @@ async def chat_stream(req: ChatRequest, user: CurrentUser, request: Request):
         user_message=req.message,
         user_id=user_id,
         role=role,
+        idempotency_key=req.idempotency_key,
     )
 
     async def _event_generator():
         final_answer = ""
         final_tool_calls: list = []
+
+        # Emit run_started so the client knows the run ID immediately
+        yield f"data: {json.dumps({'type': 'run_started', 'run_id': run_id, 'session_id': session_id}, ensure_ascii=False)}\n\n"
 
         try:
             async for event in agent.run_stream(
@@ -498,10 +552,20 @@ async def chat_stream(req: ChatRequest, user: CurrentUser, request: Request):
             yield f"data: {json.dumps({'type': 'done', 'run_id': run_id, 'session_id': session_id, 'answer': final_answer}, ensure_ascii=False)}\n\n"
 
         except Exception:
-            import traceback
-            traceback.print_exc()
+            # Log safely — no traceback in stderr
+            print(
+                f"[server] SSE stream failed for run={run_id}",
+                file=sys.stderr, flush=True,
+            )
             runs.fail_run(run_id, "stream_failed")
             yield f"data: {json.dumps({'type': 'error', 'message': '执行失败，请稍后重试'}, ensure_ascii=False)}\n\n"
+
+        finally:
+            # Ensure run is never left permanently in "running" —
+            # covers client disconnect, coroutine cancellation, etc.
+            run_data = runs.get_run(run_id)
+            if run_data and run_data["status"] == "running":
+                runs.fail_run(run_id, "client_disconnected")
 
     return StreamingResponse(
         _event_generator(),
@@ -524,7 +588,7 @@ async def list_sessions(user: CurrentUser):
 async def get_history(session_id: str, user: CurrentUser):
     user_id: str = user["user_id"]
     if not memory.session_belongs_to(session_id, user_id):
-        raise HTTPException(status_code=403, detail="无权访问此会话")
+        raise HTTPException(status_code=404, detail="会话不存在")
     return {
         "session_id": session_id,
         "messages": memory.get_history(session_id, user_id=user_id),
@@ -533,11 +597,36 @@ async def get_history(session_id: str, user: CurrentUser):
 
 @app.delete("/sessions/{session_id}")
 async def delete_session(session_id: str, user: CurrentUser):
+    """删除会话及其关联的所有数据（消息、Run、ToolCall、长期记忆、待确认操作）。"""
     user_id: str = user["user_id"]
     if not memory.session_belongs_to(session_id, user_id):
-        raise HTTPException(status_code=403, detail="无权删除此会话")
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    # 1. Delete pending confirmation actions for this session
+    try:
+        pending = confirmation.list_pending_actions(user_id, session_id)
+        for action in pending:
+            try:
+                confirmation.cancel_action(action["action_id"], user_id, session_id)
+            except confirmation.ConfirmationError:
+                pass
+    except Exception:
+        pass
+
+    # 2. Delete runs and tool calls
+    runs_deleted = runs.delete_runs_by_session(session_id)
+
+    # 3. Delete long-term memory for this session
+    memory.delete_long_term_memory(user_id, session_id)
+
+    # 4. Delete conversation messages
     memory.clear_session(session_id, user_id=user_id)
-    return {"ok": True, "session_id": session_id}
+
+    return {
+        "ok": True,
+        "session_id": session_id,
+        "runs_deleted": runs_deleted,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -547,16 +636,23 @@ async def delete_session(session_id: str, user: CurrentUser):
 
 @app.get("/runs/{run_id}", response_model=RunResponse)
 async def get_run(run_id: str, user: CurrentUser):
-    """查询 Run 状态 — MVP 开发验证接口。"""
+    """查询 Run 状态。仅返回当前用户拥有的 Run，否则返回 404。"""
+    user_id: str = user["user_id"]
     data = runs.get_run(run_id)
     if data is None:
+        raise HTTPException(status_code=404, detail="Run 不存在")
+    if data["user_id"] and data["user_id"] != user_id:
         raise HTTPException(status_code=404, detail="Run 不存在")
     return RunResponse(**data)
 
 
 @app.get("/runs/{run_id}/tool-calls", response_model=list[ToolCallResponse])
 async def get_tool_calls(run_id: str, user: CurrentUser):
-    """查询 Run 的工具调用记录 — MVP 开发验证接口。"""
+    """查询 Run 的工具调用记录。仅返回当前用户拥有的 Run 的记录。"""
+    user_id: str = user["user_id"]
+    # Check ownership first — don't reveal whether run exists
+    if not runs.run_belongs_to(run_id, user_id):
+        raise HTTPException(status_code=404, detail="Run 不存在")
     data = runs.list_tool_calls_by_run(run_id)
     return [ToolCallResponse(**tc) for tc in data]
 

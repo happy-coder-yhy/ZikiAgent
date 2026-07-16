@@ -81,8 +81,43 @@ def get_long_term_memory(user_id: str, session_id: str) -> str | None:
     return row[0] if row else None
 
 
-def upsert_long_term_memory(user_id: str, session_id: str, long_memory: str) -> None:
-    """Insert or update the long-term memory for a user+session pair."""
+# Instruction-injection patterns that must NOT be saved as long-term memory.
+# These are system-rule-changing commands disguised as "facts about the user".
+_INSTRUCTION_PATTERNS = [
+    "忽略权限", "无需确认", "跳过检查", "绕过",
+    "当管理员", "管理员权限", "管理员身份",
+    "始终把我当", "我是admin", "我是管理员",
+    "不用确认", "直接执行", "免确认",
+    "关闭确认", "关闭检查", "不检查",
+    "提权", "越权", "冒充",
+    "ignore permission", "skip confirmation", "bypass",
+    "act as admin", "treat me as admin",
+]
+
+
+def _contains_instruction_content(text: str) -> bool:
+    """Return True if *text* contains instruction-injection patterns."""
+    text_lower = text.lower()
+    return any(p.lower() in text_lower for p in _INSTRUCTION_PATTERNS)
+
+
+def upsert_long_term_memory(
+    user_id: str, session_id: str, long_memory: str,
+) -> bool:
+    """Insert or update the long-term memory for a user+session pair.
+
+    Returns True if the memory was saved, False if it was rejected (e.g.
+    instruction-injection content detected).
+    """
+    if _contains_instruction_content(long_memory):
+        logger.warning(
+            "Long-term memory REJECTED for user=%s session=%s: "
+            "contains instruction-injection pattern. "
+            "First 200 chars: %s",
+            user_id, session_id, long_memory[:200],
+        )
+        return False
+
     conn = _connect()
     _ensure_long_term_table(conn)
     now = datetime.now(timezone.utc).isoformat()
@@ -95,6 +130,21 @@ def upsert_long_term_memory(user_id: str, session_id: str, long_memory: str) -> 
     )
     conn.commit()
     conn.close()
+    return True
+
+
+def delete_long_term_memory(user_id: str, session_id: str) -> bool:
+    """Delete the long-term memory for a (user, session) pair. Returns True if a row was deleted."""
+    conn = _connect()
+    _ensure_long_term_table(conn)
+    cursor = conn.execute(
+        "DELETE FROM long_term_memory WHERE user_id = ? AND session_id = ?",
+        (user_id, session_id),
+    )
+    conn.commit()
+    deleted = cursor.rowcount > 0
+    conn.close()
+    return deleted
 
 
 def count_user_messages(user_id: str, session_id: str) -> int:
@@ -209,11 +259,6 @@ class LongTermMemoryManager:
             logger.exception(
                 "Long-term memory update failed for user=%s session=%s",
                 user_id, session_id,
-            )
-            import traceback
-            print(
-                f"[long-term-memory] EXCEPTION:\n{traceback.format_exc()}",
-                file=sys.stderr, flush=True,
             )
 
     def shutdown(self) -> None:

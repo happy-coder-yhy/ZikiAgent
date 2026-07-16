@@ -15,6 +15,7 @@ from .long_term_memory import (
     get_long_term_memory,
     upsert_long_term_memory,
     count_user_messages,
+    delete_long_term_memory,
 )
 
 __all__ = [
@@ -31,4 +32,5 @@ __all__ = [
     "get_long_term_memory",
     "upsert_long_term_memory",
     "count_user_messages",
+    "delete_long_term_memory",
 ]

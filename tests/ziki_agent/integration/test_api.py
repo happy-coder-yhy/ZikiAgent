@@ -224,6 +224,79 @@ class APIChatEndpointTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         # collector role still works — it wasn't elevated to admin
 
+    # ------------------------------------------------------------------
+    # Idempotency tests
+    # ------------------------------------------------------------------
+
+    def test_idempotency_key_returns_cached_result(self):
+        """Same idempotency_key → second request returns the first result."""
+        key = "idem-test-1"
+        # First request
+        resp1 = self.client.post("/chat", json={
+            "session_id": "idem-s1",
+            "message": "first request",
+            "idempotency_key": key,
+        }, headers=self._auth_headers("admin"))
+        self.assertEqual(resp1.status_code, 200)
+        run1 = resp1.json()["run_id"]
+
+        # Second request with same key
+        resp2 = self.client.post("/chat", json={
+            "session_id": "idem-s1",
+            "message": "different message — should be ignored",
+            "idempotency_key": key,
+        }, headers=self._auth_headers("admin"))
+        self.assertEqual(resp2.status_code, 200)
+        # Should return the cached result, not create a new run
+        self.assertEqual(resp2.json()["run_id"], run1,
+                         "Same idempotency_key should return cached run_id")
+
+    def test_different_idempotency_keys_create_different_runs(self):
+        """Different keys → different runs."""
+        resp1 = self.client.post("/chat", json={
+            "session_id": "idem-s2",
+            "message": "key A",
+            "idempotency_key": "key-a",
+        }, headers=self._auth_headers("admin"))
+        resp2 = self.client.post("/chat", json={
+            "session_id": "idem-s2",
+            "message": "key B",
+            "idempotency_key": "key-b",
+        }, headers=self._auth_headers("admin"))
+        self.assertNotEqual(resp1.json()["run_id"], resp2.json()["run_id"])
+
+    def test_idempotency_key_cross_user_isolated(self):
+        """Alice's idempotency_key should not interfere with Bob's."""
+        import base64, json as _json
+        def _headers(uid, role):
+            payload = _json.dumps({"id": uid, "name": uid, "displayName": uid, "role": role})
+            token = f"h.{base64.urlsafe_b64encode(payload.encode()).decode()}.s"
+            return {"Authorization": f"Bearer {token}", "X-Ziki-Role": role}
+
+        key = "shared-key"
+        resp_alice = self.client.post("/chat", json={
+            "session_id": "idem-s3",
+            "message": "alice msg",
+            "idempotency_key": key,
+        }, headers=_headers("alice", "admin"))
+        resp_bob = self.client.post("/chat", json={
+            "session_id": "idem-s3",
+            "message": "bob msg",
+            "idempotency_key": key,
+        }, headers=_headers("bob", "admin"))
+        # Different users → different runs even with same key
+        self.assertNotEqual(
+            resp_alice.json()["run_id"], resp_bob.json()["run_id"],
+            "Same idempotency_key for different users should create different runs")
+
+    def test_no_idempotency_key_still_works(self):
+        """Requests without idempotency_key work normally."""
+        resp = self.client.post("/chat", json={
+            "session_id": "idem-s4",
+            "message": "no key",
+        }, headers=self._auth_headers("admin"))
+        self.assertEqual(resp.status_code, 200)
+
 
 if __name__ == "__main__":
     unittest.main()

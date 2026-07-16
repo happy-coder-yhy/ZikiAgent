@@ -303,7 +303,7 @@ class Agent:
             )
         except Exception as e:
             logger.error("run_conversation failed: %s", e)
-            error_msg = f"AI 服务暂时不可用: {e}"
+            error_msg = "AI 服务暂时不可用，请稍后重试"
             memory.add_message(session_id, "assistant", error_msg, user_id=user_id)
             return AgentResult(response=error_msg)
 
@@ -414,13 +414,14 @@ class Agent:
         # ---- Error handling ----
         error_msg = result_holder.get("error")
         if error_msg:
+            logger.error("run_conversation (stream) failed: %s", error_msg)
+            safe_msg = "AI 服务暂时不可用，请稍后重试"
             yield {
                 "type": "error",
-                "message": f"AI 服务暂时不可用: {error_msg}",
+                "message": safe_msg,
             }
             memory.add_message(
-                session_id, "assistant",
-                f"AI 服务暂时不可用: {error_msg}", user_id=user_id,
+                session_id, "assistant", safe_msg, user_id=user_id,
             )
             return
 

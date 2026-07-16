@@ -32,20 +32,26 @@ def _connect() -> sqlite3.Connection:
 def _ensure_run_tables(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS agent_runs (
-            run_id       TEXT PRIMARY KEY,
-            session_id   TEXT NOT NULL,
-            user_id      TEXT NOT NULL DEFAULT '',
-            role         TEXT NOT NULL DEFAULT 'admin',
-            user_message TEXT NOT NULL,
-            status       TEXT NOT NULL DEFAULT 'running',
-            answer       TEXT,
-            error_code   TEXT,
-            started_at   TEXT NOT NULL,
-            finished_at  TEXT,
-            duration_ms  INTEGER,
-            created_at   TEXT NOT NULL
+            run_id          TEXT PRIMARY KEY,
+            session_id      TEXT NOT NULL,
+            user_id         TEXT NOT NULL DEFAULT '',
+            role            TEXT NOT NULL DEFAULT 'admin',
+            user_message    TEXT NOT NULL,
+            idempotency_key TEXT,
+            status          TEXT NOT NULL DEFAULT 'running',
+            answer          TEXT,
+            error_code      TEXT,
+            started_at      TEXT NOT NULL,
+            finished_at     TEXT,
+            duration_ms     INTEGER,
+            created_at      TEXT NOT NULL
         )
     """)
+    # Migrate: add idempotency_key column if missing
+    try:
+        conn.execute("SELECT idempotency_key FROM agent_runs LIMIT 0")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE agent_runs ADD COLUMN idempotency_key TEXT")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS agent_tool_calls (
             tool_call_id TEXT PRIMARY KEY,
@@ -79,21 +85,60 @@ def create_run(
     *,
     user_id: str = "",
     role: str = "admin",
+    idempotency_key: str = "",
 ) -> str:
-    """Create a new agent run, returning its *run_id*."""
+    """Create a new agent run, returning its *run_id*.
+
+    If *idempotency_key* is provided, it is stored for deduplication.
+    """
     run_id = uuid.uuid4().hex
     now = datetime.now(timezone.utc).isoformat()
     conn = _connect()
     _ensure_run_tables(conn)
     conn.execute(
         "INSERT INTO agent_runs (run_id, session_id, user_id, role, user_message,"
-        " status, started_at, created_at)"
-        " VALUES (?, ?, ?, ?, ?, 'running', ?, ?)",
-        (run_id, session_id, user_id, role, user_message, now, now),
+        " idempotency_key, status, started_at, created_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, 'running', ?, ?)",
+        (run_id, session_id, user_id, role, user_message,
+         idempotency_key or "", now, now),
     )
     conn.commit()
     conn.close()
     return run_id
+
+
+def find_run_by_idempotency_key(
+    user_id: str, session_id: str, idempotency_key: str,
+) -> dict | None:
+    """Find a completed or failed run by its idempotency key.
+
+    Only returns runs that have finished (not 'running'), so the caller
+    can safely return a cached result. Returns None if no match.
+    """
+    if not idempotency_key:
+        return None
+    conn = _connect()
+    _ensure_run_tables(conn)
+    row = conn.execute(
+        "SELECT run_id, session_id, user_id, role, user_message,"
+        " idempotency_key, status, answer, error_code,"
+        " started_at, finished_at, duration_ms, created_at"
+        " FROM agent_runs"
+        " WHERE user_id = ? AND session_id = ? AND idempotency_key = ?"
+        "   AND status IN ('completed', 'failed')"
+        " ORDER BY created_at DESC LIMIT 1",
+        (user_id, session_id, idempotency_key),
+    ).fetchone()
+    conn.close()
+    if row is None:
+        return None
+    return {
+        "run_id": row[0], "session_id": row[1], "user_id": row[2],
+        "role": row[3], "user_message": row[4], "idempotency_key": row[5],
+        "status": row[6], "answer": row[7], "error_code": row[8],
+        "started_at": row[9], "finished_at": row[10],
+        "duration_ms": row[11], "created_at": row[12],
+    }
 
 
 def complete_run(run_id: str, answer: str) -> None:
@@ -176,6 +221,18 @@ def get_run(run_id: str) -> dict | None:
         "duration_ms": row[10],
         "created_at": row[11],
     }
+
+
+def run_belongs_to(run_id: str, user_id: str) -> bool:
+    """Check whether *run_id* was created by *user_id*."""
+    conn = _connect()
+    _ensure_run_tables(conn)
+    row = conn.execute(
+        "SELECT COUNT(*) FROM agent_runs WHERE run_id = ? AND user_id = ?",
+        (run_id, user_id),
+    ).fetchone()
+    conn.close()
+    return (row[0] if row else 0) > 0
 
 
 def list_runs_by_session(session_id: str) -> list[dict]:
@@ -312,6 +369,53 @@ def list_tool_calls_by_run(run_id: str) -> list[dict]:
         }
         for r in rows
     ]
+
+
+# ---------------------------------------------------------------------------
+# Bulk operations
+# ---------------------------------------------------------------------------
+
+
+def delete_runs_by_session(session_id: str) -> int:
+    """Delete all runs and tool calls for *session_id*. Returns count of runs deleted."""
+    conn = _connect()
+    _ensure_run_tables(conn)
+    # Get run_ids first to delete their tool calls
+    run_ids = [
+        r[0] for r in
+        conn.execute(
+            "SELECT run_id FROM agent_runs WHERE session_id = ?", (session_id,)
+        ).fetchall()
+    ]
+    for rid in run_ids:
+        conn.execute("DELETE FROM agent_tool_calls WHERE run_id = ?", (rid,))
+    cursor = conn.execute(
+        "DELETE FROM agent_runs WHERE session_id = ?", (session_id,)
+    )
+    conn.commit()
+    count = cursor.rowcount
+    conn.close()
+    return count
+
+
+def cleanup_stuck_runs() -> int:
+    """Mark all runs still 'running' as 'failed' with error_code 'server_restart'.
+
+    Called at startup to recover from crashes / unclean shutdowns.
+    Returns the number of runs cleaned up.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    conn = _connect()
+    _ensure_run_tables(conn)
+    cursor = conn.execute(
+        "UPDATE agent_runs SET status = 'failed', error_code = 'server_restart',"
+        " finished_at = ? WHERE status = 'running'",
+        (now,),
+    )
+    conn.commit()
+    count = cursor.rowcount
+    conn.close()
+    return count
 
 
 # ---------------------------------------------------------------------------

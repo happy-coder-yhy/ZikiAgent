@@ -153,8 +153,8 @@ class SessionOwnershipTests(SecurityTestBase):
             "/sessions/s-ownership-2/history",
             headers=self._auth_headers("bob"),
         )
-        self.assertEqual(resp.status_code, 403,
-                         "User B should get 403 reading User A's session")
+        self.assertEqual(resp.status_code, 404,
+                         "User B should get 404 (not found) reading User A's session")
 
     def test_user_a_can_read_own_history(self):
         chat_resp = self._create_chat("s-ownership-3", "my message", user_id="alice")
@@ -175,8 +175,8 @@ class SessionOwnershipTests(SecurityTestBase):
             "/sessions/s-ownership-4",
             headers=self._auth_headers("bob"),
         )
-        self.assertEqual(resp.status_code, 403,
-                         "User B should get 403 deleting User A's session")
+        self.assertEqual(resp.status_code, 404,
+                         "User B should get 404 (not found) deleting User A's session")
 
     def test_user_a_can_delete_own_session(self):
         chat_resp = self._create_chat("s-ownership-5", "my session", user_id="alice")
@@ -189,6 +189,34 @@ class SessionOwnershipTests(SecurityTestBase):
         self.assertEqual(resp.status_code, 200,
                          f"Delete failed: {resp.json()}")
         self.assertTrue(resp.json()["ok"])
+
+    def test_delete_session_cascades_to_runs(self):
+        """Deleting a session should also delete its runs."""
+        # Create a session with a run
+        chat_resp = self._create_chat("s-cascade-1", "cascade test", user_id="alice")
+        run_id = chat_resp.json()["run_id"]
+
+        # Verify run exists
+        from ziki_agent import runs
+        self.assertIsNotNone(runs.get_run(run_id))
+
+        # Delete the session
+        resp = self.client.delete(
+            "/sessions/s-cascade-1",
+            headers=self._auth_headers("alice"),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertGreater(resp.json().get("runs_deleted", 0), 0)
+
+        # Verify run is gone (or still exists but we don't enforce FK cascade —
+        # the delete_runs_by_session is the explicit cleanup)
+        # After deletion, the session history should be empty
+        hist_resp = self.client.get(
+            "/sessions/s-cascade-1/history",
+            headers=self._auth_headers("alice"),
+        )
+        self.assertEqual(hist_resp.status_code, 404,
+                         "Session should be gone after delete")
 
 
 # ---------------------------------------------------------------------------
@@ -243,6 +271,33 @@ class RunOwnershipTests(SecurityTestBase):
         calls = resp.json()
         self.assertIsInstance(calls, list)
         self.assertGreater(len(calls), 0)
+
+    def test_user_a_cannot_read_user_b_run(self):
+        """User B trying to read User A's run → 404 (not 403, to avoid leaking existence)."""
+        resp = self.client.get(
+            f"/runs/{self._alice_run_id}",
+            headers=self._auth_headers("bob"),
+        )
+        self.assertEqual(resp.status_code, 404,
+                         "User B should get 404 accessing User A's run")
+
+    def test_user_a_cannot_read_user_b_tool_calls(self):
+        """User B trying to read User A's tool calls → 404."""
+        resp = self.client.get(
+            f"/runs/{self._alice_run_id}/tool-calls",
+            headers=self._auth_headers("bob"),
+        )
+        self.assertEqual(resp.status_code, 404,
+                         "User B should get 404 accessing User A's tool calls")
+
+    def test_user_b_cannot_delete_user_a_run(self):
+        """No direct run-delete endpoint, but ownership check ensures isolation."""
+        resp = self.client.get(
+            f"/runs/{self._bob_run_id}",
+            headers=self._auth_headers("alice"),
+        )
+        self.assertEqual(resp.status_code, 404,
+                         "Alice should get 404 accessing Bob's run")
 
 
 # ---------------------------------------------------------------------------
@@ -444,6 +499,76 @@ class NoQueryParamAuthTests(SecurityTestBase):
             "/runs/some-id?authorization=Bearer%20tok",
         )
         self.assertEqual(resp.status_code, 401)
+
+
+# ---------------------------------------------------------------------------
+# Role Header Toggle — X-Ziki-Role disabled by default
+# ---------------------------------------------------------------------------
+
+
+class RoleHeaderToggleTests(SecurityTestBase):
+    """X-Ziki-Role header fallback is DISABLED by default in production."""
+
+    @staticmethod
+    def _jwt_without_role(user_id="test-user"):
+        """Build a JWT without a 'role' field."""
+        payload = json.dumps({
+            "id": user_id,
+            "name": f"User {user_id}",
+            "displayName": user_id,
+        })
+        return f"header.{base64.urlsafe_b64encode(payload.encode()).decode()}.sig"
+
+    def setUp(self):
+        """Reset env var before each test."""
+        if "ZIKI_ALLOW_ROLE_HEADER" in os.environ:
+            del os.environ["ZIKI_ALLOW_ROLE_HEADER"]
+
+    def test_x_ziki_role_header_ignored_by_default(self):
+        """Without ZIKI_ALLOW_ROLE_HEADER=1, X-Ziki-Role header is ignored
+        and a JWT without role → 403."""
+        token = self._jwt_without_role("alice")
+        resp = self.client.post("/chat", json={
+            "session_id": "rh1", "message": "hello"
+        }, headers={
+            "Authorization": f"Bearer {token}",
+            "X-Ziki-Role": "admin",
+        })
+        self.assertEqual(resp.status_code, 403,
+                         "X-Ziki-Role should be ignored when toggle is off")
+
+    def test_x_ziki_role_header_works_when_toggle_on(self):
+        """With ZIKI_ALLOW_ROLE_HEADER=1, X-Ziki-Role header is accepted."""
+        os.environ["ZIKI_ALLOW_ROLE_HEADER"] = "1"
+        try:
+            from ziki_agent import server as server_mod
+            # Re-import the role extraction logic's env check (it reads os.environ live)
+            token = self._jwt_without_role("alice")
+            resp = self.client.post("/chat", json={
+                "session_id": "rh2", "message": "hello"
+            }, headers={
+                "Authorization": f"Bearer {token}",
+                "X-Ziki-Role": "admin",
+            })
+            self.assertEqual(resp.status_code, 200,
+                             "X-Ziki-Role should work when toggle is on")
+        finally:
+            del os.environ["ZIKI_ALLOW_ROLE_HEADER"]
+
+    def test_x_ziki_role_header_rejects_invalid_role(self):
+        """With toggle on, an invalid role in X-Ziki-Role → 403."""
+        os.environ["ZIKI_ALLOW_ROLE_HEADER"] = "1"
+        try:
+            token = self._jwt_without_role("alice")
+            resp = self.client.post("/chat", json={
+                "session_id": "rh3", "message": "hello"
+            }, headers={
+                "Authorization": f"Bearer {token}",
+                "X-Ziki-Role": "hacker",
+            })
+            self.assertEqual(resp.status_code, 403)
+        finally:
+            del os.environ["ZIKI_ALLOW_ROLE_HEADER"]
 
 
 if __name__ == "__main__":
