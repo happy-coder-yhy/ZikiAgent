@@ -4,9 +4,9 @@ Roles come from the trusted authentication layer (JWT bearer token), never
 from user messages, prompt text, or model output.
 
 Allowed roles:
-  admin     — 13 read-only admin tools
-  collector —  3 read-only collector tools
-  unknown   —  any other value → rejected
+  admin     — 系统平台管理员（22 tools: read + write + bind）
+  collector — 数据采集员（6 tools: read + bind + claim）
+  unknown   — any other value → rejected
 
 These are code constants for the MVP, not database-backed.
 """
@@ -47,6 +47,7 @@ ADMIN_READONLY_TOOLS = frozenset({
     "search_user",
     # project
     "get_projects",
+    "create_project",
     # scene_task
     "get_scene_task",
     "create_scene_task",
@@ -65,12 +66,17 @@ ADMIN_READONLY_TOOLS = frozenset({
     # device
     "device_summary",
     "device_detail",
+    "bind_collector_or_job",
+    "change_bind",
 })
 
 COLLECTOR_READONLY_TOOLS = frozenset({
     "query_task_job",
     "query_my_device",
     "query_device_binding",
+    "bind_job_to_device",
+    "bind_self_to_device",
+    "claim_job",
 })
 
 
