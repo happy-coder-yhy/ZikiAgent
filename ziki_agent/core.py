@@ -25,6 +25,18 @@ logger = logging.getLogger("agent")
 # ---------------------------------------------------------------------------
 
 
+# 写入工具命名模式 — 匹配这些前缀的视为写操作，需要确认
+_WRITE_TOOL_PREFIXES = (
+    "create_", "update_", "delete_", "bind_", "publish_",
+    "change_", "claim_",
+)
+
+
+def _has_write_tools(tool_allowlist: frozenset[str]) -> bool:
+    """检查白名单中是否包含写入工具。"""
+    return any(t.startswith(_WRITE_TOOL_PREFIXES) for t in tool_allowlist)
+
+
 def _build_system_prompt(role: str, tool_allowlist: frozenset[str]) -> str:
     """Construct a role-aware system prompt that tells the model exactly
     what it can and cannot do.
@@ -38,7 +50,9 @@ def _build_system_prompt(role: str, tool_allowlist: frozenset[str]) -> str:
     """
 
     tool_list = "\n".join(f"  - {t}" for t in sorted(tool_allowlist))
+    can_write = _has_write_tools(tool_allowlist)
 
+    # ---- 角色权限块 ----
     if role == "admin":
         role_block = f"""## 你的角色：管理员（只读）
 
@@ -76,10 +90,40 @@ def _build_system_prompt(role: str, tool_allowlist: frozenset[str]) -> str:
 可用工具：
 {tool_list}"""
 
+    # ---- 写操作确认协议（仅当角色拥有写入工具时追加） ----
+    confirmation_block = ""
+    if can_write:
+        confirmation_block = """
+## 写操作确认协议（必须遵守）
+
+你有权限执行写操作（创建、修改、删除、绑定等）。**每次调用写入工具前**，必须：
+
+1. **收集参数** — 确保所有必填参数已从用户处获取，缺失的主动询问
+2. **展示确认摘要** — 按以下格式展示即将执行的操作：
+
+```
+📋 **操作确认**
+
+| 项目 | 内容 |
+|------|------|
+| 操作类型 | （如：创建场景任务） |
+| ... | （列出所有关键参数） |
+
+⚠️ 以上操作将提交到平台，确认执行？请回复 **"确认"** 继续。
+```
+
+3. **等待确认** — 用户必须明确回复 "确认" / "确认执行" / "yes" 后才能调用写入工具
+4. **用户拒绝** — 如果用户回复 "取消" / "不" / "no" 或其他非确认内容，放弃操作
+
+**注意**：
+- 不要在用户确认前调用任何写入工具
+- 只读查询（如 get_*、query_*、task_summary 等）无需确认，直接执行
+- 如果用户在一次消息中已明确表达确认意图，可视为通过确认"""
+
     return f"""你叫 Ziki，是 Zata 数字采集平台的 AI 助手。
 
 {role_block}
-
+{confirmation_block}
 ## 通用规则
 1. 使用提供的工具来查询平台数据，不要编造信息
 2. 当用户意图不明确时，主动询问澄清
