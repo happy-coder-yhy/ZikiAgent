@@ -12,7 +12,8 @@ COLLECTOR_USER_ID = "27b5f00f-cc82-4eaa-889b-d34ad839098a"
 
 async def main():
     agent = Agent()
-    session_id = str(uuid.uuid4())[:8]
+    # session_id = str(uuid.uuid4())[:8]
+    session_id = '8f58d9fc'
 
     # Switch between ADMIN_USER_ID / COLLECTOR_USER_ID to test different roles
     test_user_id = ADMIN_USER_ID
@@ -23,15 +24,20 @@ async def main():
     # print(f"[{session_id}] Ziki: {result.response}\n")
 
     # Turn 2 — remembers context via SQLite (scoped to user_id)
-    text = "帮我创建一个项目，项目名为对话测试"
+    text = "我最近干了什么"
     result = await agent.run(session_id, text, user_id=test_user_id)
     print(f"[{session_id}] User: {text}")
     print(f"[{session_id}] Ziki: {result.response}\n")
 
-    text = "项目描述为上下文测试"
-    result2 = await agent.run(session_id, text, user_id=test_user_id)
-    print(f"[{session_id}] User: {text}")
-    print(f"[{session_id}] Ziki: {result2.response}\n")
+    # text = "计划采集条数为5，作业描述为memory测试2"
+    # result2 = await agent.run(session_id, text, user_id=test_user_id)
+    # print(f"[{session_id}] User: {text}")
+    # print(f"[{session_id}] Ziki: {result2.response}\n")
+
+    # text = "我是北京人"
+    # result2 = await agent.run(session_id, text, user_id=test_user_id)
+    # print(f"[{session_id}] User: {text}")
+    # print(f"[{session_id}] Ziki: {result2.response}\n")
 
     # Cleanup
     # memory.clear_session(session_id, user_id=test_user_id)

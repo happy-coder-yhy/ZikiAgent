@@ -237,6 +237,10 @@ class Agent:
         )
         self._executor = ThreadPoolExecutor(max_workers=4)
 
+        # ---- 5. Long-term memory manager (fire-and-forget every x turns) ----
+        from .memory.long_term_memory import LongTermMemoryManager
+        self._memory_manager = LongTermMemoryManager()
+
     async def run(
         self, session_id: str, user_message: str, user_id: str = "",
     ) -> AgentResult:
@@ -251,6 +255,14 @@ class Agent:
 
         from . import memory
         history = memory.get_history(session_id, user_id=user_id)
+
+        # ---- Inject long-term memory into conversation context ----
+        long_term = memory.get_long_term_memory(user_id, session_id)
+        if long_term:
+            history.insert(0, {
+                "role": "system",
+                "content": f"[用户长期记忆]\n{long_term}",
+            })
 
         loop = asyncio.get_running_loop()
         try:
@@ -276,6 +288,27 @@ class Agent:
 
         memory.add_messages_batch(session_id, all_messages, user_id=user_id)
 
+        # ---- Trigger long-term memory update every x user turns ----
+        user_msg_count = memory.count_user_messages(user_id, session_id)
+        turn = 10
+        if user_msg_count > 0 and user_msg_count % turn == 0:
+            import sys
+            print(
+                f"[long-term-memory] Trigger fired: turn {user_msg_count} "
+                f"for user={user_id} session={session_id}",
+                file=sys.stderr, flush=True,
+            )
+            # Run in a separate daemon thread so it's truly fire-and-forget —
+            # asyncio.create_task() can be unreliable in FastAPI when the
+            # route handler returns immediately.
+            import threading
+            threading.Thread(
+                target=lambda: asyncio.run(
+                    self._memory_manager.update(user_id, session_id)
+                ),
+                daemon=True,
+            ).start()
+
         return AgentResult(
             response=final_response,
             messages=all_messages,
@@ -284,5 +317,6 @@ class Agent:
 
     def shutdown(self) -> None:
         self._executor.shutdown(wait=True)
+        self._memory_manager.shutdown()
         if hasattr(self._agent, "close"):
             self._agent.close()

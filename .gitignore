@@ -67,3 +67,4 @@ zata_doc/
 
 *.db
 .logs/
+*.html

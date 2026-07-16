@@ -49,12 +49,19 @@ ADMIN_READONLY_TOOLS = frozenset({
     "get_projects",
     # scene_task
     "get_scene_task",
+    "create_scene_task",
+    "update_scene_task",
+    "publish_scene_task",   
     # task_work
     "task_summary",
     "task_detail",
     "job_summary",
     "job_detail",
     "task_job_details",
+    # job_maintenance
+    "create_job",
+    "update_job",
+    "delete_job",
     # device
     "device_summary",
     "device_detail",

@@ -20,11 +20,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-_DB_PATH = Path(__file__).parent / "conversations.db"
+_DB_PATH = Path(__file__).parent.parent / "conversations.db"
 
 # Size of the sliding context window — only the last N messages are included
 # as conversation_history sent to the LLM.
-CONTEXT_WINDOW_SIZE = 10
+CONTEXT_WINDOW_SIZE = 5
 
 
 def _connect() -> sqlite3.Connection:
