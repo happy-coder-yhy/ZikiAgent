@@ -260,7 +260,8 @@ class LongTermMemoryManager:
     def _parse_response(raw: str) -> str:
         """Extract the memory_summary from the LLM's JSON response.
 
-        Returns the memory_summary string, or the full raw text as fallback.
+        Returns the memory_summary string, or an empty string if parsing fails
+        (so existing memory is preserved rather than overwritten with raw text).
         """
         # Try to extract JSON from the response (may be wrapped in markdown)
         text = raw.strip()
@@ -280,5 +281,12 @@ class LongTermMemoryManager:
         except json.JSONDecodeError:
             pass
 
-        # Fallback: return the raw text (truncated to 5000 chars)
-        return raw[:5000]
+        # JSON parsing failed — do NOT fall back to raw text,
+        # as that would overwrite existing memory with unstructured content.
+        logger.warning(
+            "Long-term memory: failed to parse JSON from LLM response, "
+            "skipping update to preserve existing memory. "
+            "Raw response (first 200 chars): %s",
+            raw[:200],
+        )
+        return ""
