@@ -159,16 +159,27 @@ def create_app(
         def _filtered_tool(*args, **kwargs):
             """Decorator that only registers the tool if its name is in the
             allowlist.  Preserves the original FastMCP tool() signature."""
-            # Resolve the tool name: explicit or the function name
-            tool_name = kwargs.get("name") or (args[0] if args and callable(args[0]) else None)
-            if callable(tool_name):
-                tool_name = getattr(tool_name, "__name__", None)
-            if isinstance(tool_name, str) and tool_name not in tool_allowlist:
-                # Return a no-op decorator that skips registration
-                def _skip(fn):
-                    return fn
-                return _skip
-            return _original_tool(*args, **kwargs)
+            name_from_kwargs = kwargs.get("name")
+
+            # Case 1: @mcp.tool  — function passed directly (no parens)
+            if len(args) == 1 and callable(args[0]) and not kwargs:
+                func = args[0]
+                fn_name = name_from_kwargs or getattr(func, "__name__", None)
+                if isinstance(fn_name, str) and fn_name not in tool_allowlist:
+                    return func  # skip
+                return _original_tool(*args, **kwargs)
+
+            # Case 2: @mcp.tool() or @mcp.tool(name="xxx")
+            # The function name isn't known yet — intercept the decorator.
+            real_decorator = _original_tool(*args, **kwargs)
+
+            def _checking_decorator(fn):
+                fn_name = name_from_kwargs or getattr(fn, "__name__", None)
+                if isinstance(fn_name, str) and fn_name not in tool_allowlist:
+                    return fn  # skip registration entirely
+                return real_decorator(fn)
+
+            return _checking_decorator
 
         mcp.tool = _filtered_tool
 
