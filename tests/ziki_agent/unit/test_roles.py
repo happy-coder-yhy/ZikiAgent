@@ -4,7 +4,7 @@ import unittest
 import os
 import sys
 
-_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
@@ -39,9 +39,9 @@ class RoleValidationTests(unittest.TestCase):
 class AdminAllowlistTests(unittest.TestCase):
     """Test admin tool allowlist contains expected tools."""
 
-    def test_admin_allowlist_has_13_tools(self):
+    def test_admin_allowlist_has_22_tools(self):
         allowlist = roles.get_allowlist_for_role("admin")
-        self.assertEqual(len(allowlist), 13)
+        self.assertEqual(len(allowlist), 22)
 
     def test_admin_allows_readonly_tools(self):
         allowlist = roles.get_allowlist_for_role("admin")
@@ -59,17 +59,18 @@ class AdminAllowlistTests(unittest.TestCase):
         self.assertIn("device_summary", allowlist)
         self.assertIn("device_detail", allowlist)
 
-    def test_admin_denies_write_tools(self):
+    def test_admin_allows_write_tools(self):
+        """Admin now has 9 write tools (added in bf3ab4c)."""
         allowlist = roles.get_allowlist_for_role("admin")
-        self.assertNotIn("create_scene_task", allowlist)
-        self.assertNotIn("update_scene_task", allowlist)
-        self.assertNotIn("publish_scene_task", allowlist)
-        self.assertNotIn("create_project", allowlist)
-        self.assertNotIn("create_job", allowlist)
-        self.assertNotIn("update_job", allowlist)
-        self.assertNotIn("delete_job", allowlist)
-        self.assertNotIn("bind_collector_or_job", allowlist)
-        self.assertNotIn("change_bind", allowlist)
+        self.assertIn("create_scene_task", allowlist)
+        self.assertIn("update_scene_task", allowlist)
+        self.assertIn("publish_scene_task", allowlist)
+        self.assertIn("create_project", allowlist)
+        self.assertIn("create_job", allowlist)
+        self.assertIn("update_job", allowlist)
+        self.assertIn("delete_job", allowlist)
+        self.assertIn("bind_collector_or_job", allowlist)
+        self.assertIn("change_bind", allowlist)
 
     def test_admin_denies_collector_tools(self):
         allowlist = roles.get_allowlist_for_role("admin")
@@ -84,9 +85,9 @@ class AdminAllowlistTests(unittest.TestCase):
 class CollectorAllowlistTests(unittest.TestCase):
     """Test collector tool allowlist contains expected tools."""
 
-    def test_collector_allowlist_has_3_tools(self):
+    def test_collector_allowlist_has_6_tools(self):
         allowlist = roles.get_allowlist_for_role("collector")
-        self.assertEqual(len(allowlist), 3)
+        self.assertEqual(len(allowlist), 6)
 
     def test_collector_allows_readonly_tools(self):
         allowlist = roles.get_allowlist_for_role("collector")
@@ -101,11 +102,12 @@ class CollectorAllowlistTests(unittest.TestCase):
         self.assertNotIn("device_summary", allowlist)
         self.assertNotIn("create_scene_task", allowlist)
 
-    def test_collector_denies_write_tools(self):
+    def test_collector_allows_write_tools(self):
+        """Collector now has 3 write tools (added in bf3ab4c)."""
         allowlist = roles.get_allowlist_for_role("collector")
-        self.assertNotIn("claim_job", allowlist)
-        self.assertNotIn("bind_job_to_device", allowlist)
-        self.assertNotIn("bind_self_to_device", allowlist)
+        self.assertIn("claim_job", allowlist)
+        self.assertIn("bind_job_to_device", allowlist)
+        self.assertIn("bind_self_to_device", allowlist)
 
 
 class AllToolsIntegrityTests(unittest.TestCase):

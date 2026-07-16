@@ -68,3 +68,9 @@ zata_doc/
 *.db
 .logs/
 *.html
+
+# 临时调试/验证脚本
+_debug_*.py
+_test_*.py
+_verify_*.py
+role_awareness_test.py
