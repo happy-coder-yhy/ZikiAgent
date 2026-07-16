@@ -79,6 +79,32 @@ COLLECTOR_READONLY_TOOLS = frozenset({
     "claim_job",
 })
 
+# ---------------------------------------------------------------------------
+# Write tools — require user confirmation before execution
+# ---------------------------------------------------------------------------
+
+WRITE_TOOLS = frozenset({
+    # admin write tools (9)
+    "create_project",
+    "create_scene_task",
+    "update_scene_task",
+    "publish_scene_task",
+    "create_job",
+    "update_job",
+    "delete_job",
+    "bind_collector_or_job",
+    "change_bind",
+    # collector write tools (3)
+    "claim_job",
+    "bind_job_to_device",
+    "bind_self_to_device",
+})
+
+
+def is_write_tool(tool_name: str) -> bool:
+    """Return True if *tool_name* is a write operation that requires confirmation."""
+    return tool_name in WRITE_TOOLS
+
 
 def get_allowlist_for_role(role: str) -> frozenset[str]:
     """Return the tool-name allowlist for *role*.

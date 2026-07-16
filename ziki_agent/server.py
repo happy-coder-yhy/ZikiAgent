@@ -49,9 +49,9 @@ except ImportError:
     pass
 
 from ziki_agent.core import Agent
-from ziki_agent import memory, runs
+from ziki_agent import memory, runs, confirmation
 from ziki_agent.auth import decode_access_token, TokenDecodeError
-from ziki_agent.roles import validate_role
+from ziki_agent.roles import validate_role, is_write_tool
 
 # ---------------------------------------------------------------------------
 # App
@@ -80,6 +80,14 @@ async def startup():
         print("[server] Ziki Agent (Hermes) 初始化成功", file=sys.stderr)
     except Exception as e:
         print(f"[server] Agent 初始化失败: {e}", file=sys.stderr)
+
+    # Clean up any expired confirmation actions from previous runs
+    try:
+        count = confirmation.cleanup_expired()
+        if count:
+            print(f"[server] 清理了 {count} 条过期确认操作", file=sys.stderr)
+    except Exception as e:
+        print(f"[server] 清理过期确认操作失败: {e}", file=sys.stderr)
 
 
 @app.on_event("shutdown")
@@ -213,6 +221,140 @@ class SessionInfo(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Confirmation models
+# ---------------------------------------------------------------------------
+
+# 确认关键词和取消关键词（用于前置钩子匹配）
+_CONFIRM_KEYWORDS = frozenset({
+    "确认", "确认执行", "yes", "ok", "好的", "可以", "执行", "是", "行", "好",
+    "确定", "同意", "confirm", "go", "proceed", "y", "提交",
+})
+_CANCEL_KEYWORDS = frozenset({
+    "取消", "不", "no", "不要", "算了", "别", "cancel", "abort", "n",
+    "放弃", "拒绝",
+})
+
+
+def _is_confirm_message(message: str) -> bool:
+    """Check if *message* is a user confirmation (simple keyword match)."""
+    return message.strip().lower() in _CONFIRM_KEYWORDS
+
+
+def _is_cancel_message(message: str) -> bool:
+    """Check if *message* is a user cancellation (simple keyword match)."""
+    return message.strip().lower() in _CANCEL_KEYWORDS
+
+
+class ConfirmRequest(BaseModel):
+    action_id: str = Field(..., min_length=1, description="操作 ID")
+
+
+class ConfirmResponse(BaseModel):
+    ok: bool
+    action_id: str
+    status: str
+    tool_name: str = ""
+    message: str = ""
+
+
+class PendingActionResponse(BaseModel):
+    action_id: str
+    user_id: str
+    session_id: str
+    role: str
+    tool_name: str
+    arguments_json: str
+    status: str
+    created_at: str
+    expires_at: str
+    executed_at: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Confirmation helpers
+# ---------------------------------------------------------------------------
+
+
+def _handle_pre_chat_confirmation(
+    message: str, user_id: str, session_id: str,
+) -> dict | None:
+    """Pre-chat hook: intercept confirmation/cancellation messages.
+
+    If the message is a confirmation/cancellation and pending actions exist,
+    validates and transitions them BEFORE passing to the agent.
+
+    Returns a dict to short-circuit the response, or None to proceed normally.
+    """
+    if _is_confirm_message(message):
+        pending = confirmation.list_pending_actions(user_id, session_id)
+        if pending:
+            # Confirm the most recent pending action
+            action = confirmation.confirm_action(
+                pending[0]["action_id"], user_id, session_id,
+            )
+            print(
+                f"[confirm] Pre-chat: confirmed action {pending[0]['action_id']} "
+                f"({action['tool_name']}) for user={user_id}",
+                file=sys.stderr, flush=True,
+            )
+        # Always pass through — the agent will process "确认" normally
+        return None
+
+    if _is_cancel_message(message):
+        pending = confirmation.list_pending_actions(user_id, session_id)
+        if pending:
+            # Cancel all pending actions for this user+session
+            for action in pending:
+                try:
+                    confirmation.cancel_action(
+                        action["action_id"], user_id, session_id,
+                    )
+                    print(
+                        f"[confirm] Pre-chat: cancelled action {action['action_id']} "
+                        f"({action['tool_name']})",
+                        file=sys.stderr, flush=True,
+                    )
+                except confirmation.ConfirmationError:
+                    pass
+            return {
+                "run_id": "",
+                "session_id": session_id,
+                "status": "cancelled",
+                "answer": f"已取消 {len(pending)} 个待确认操作。",
+            }
+        # No pending actions — pass through normally
+        return None
+
+    return None
+
+
+def _post_chat_audit(
+    tool_calls: list[dict], user_id: str, session_id: str, role: str,
+) -> None:
+    """Post-chat hook: consume confirmed actions for executed write tools.
+
+    After the agent returns, if any write tools were called and there are
+    confirmed pending actions, consume them atomically.
+    """
+    for tc in tool_calls:
+        tool_name = tc.get("tool_name", "")
+        if not is_write_tool(tool_name):
+            continue
+
+        # Look for a confirmed action that matches this write tool
+        pending = confirmation.list_pending_actions(user_id, session_id)
+        confirmed = [a for a in pending if a["status"] == "confirmed"]
+        if confirmed:
+            consumed = confirmation.consume_action_once(confirmed[0]["action_id"])
+            if consumed:
+                print(
+                    f"[confirm] Post-chat: consumed action {confirmed[0]['action_id']}"
+                    f" ({tool_name}) for user={user_id}",
+                    file=sys.stderr, flush=True,
+                )
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
@@ -224,6 +366,11 @@ async def chat(req: ChatRequest, user: CurrentUser, request: Request):
 
     # Resolve role from JWT or header
     role = await get_current_role(request, user)
+
+    # ---- Pre-chat: confirmation / cancellation hook ----
+    short_circuit = _handle_pre_chat_confirmation(req.message, user_id, session_id)
+    if short_circuit is not None:
+        return ChatResponse(**short_circuit)
 
     # Get or create role-scoped agent
     try:
@@ -250,6 +397,9 @@ async def chat(req: ChatRequest, user: CurrentUser, request: Request):
             status="failed",
             answer="执行失败，请稍后重试",
         )
+
+    # ---- Post-chat: consume confirmed actions for executed write tools ----
+    _post_chat_audit(result.tool_calls, user_id, session_id, role)
 
     # Persist tool calls extracted from Hermes messages
     for tc in result.tool_calls:
@@ -278,11 +428,27 @@ async def chat_stream(req: ChatRequest, user: CurrentUser, request: Request):
     - ``data: {"type":"token","text":"..."}`` — a text delta from the LLM
     - ``data: {"type":"done","answer":"...","tool_calls":[...]}`` — final result
     - ``data: {"type":"error","message":"..."}`` — execution error
+    - ``data: {"type":"cancelled","message":"..."}`` — user cancelled pending actions
     """
     user_id: str = user["user_id"]
     session_id = req.session_id or str(uuid.uuid4())[:8]
 
     role = await get_current_role(request, user)
+
+    # ---- Pre-chat: confirmation / cancellation hook ----
+    short_circuit = _handle_pre_chat_confirmation(req.message, user_id, session_id)
+    if short_circuit is not None:
+        async def _cancelled_gen():
+            yield f"data: {json.dumps({'type': 'cancelled', 'message': short_circuit['answer']}, ensure_ascii=False)}\n\n"
+        return StreamingResponse(
+            _cancelled_gen(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     try:
         agent = _get_agent_for_role(role)
@@ -313,6 +479,9 @@ async def chat_stream(req: ChatRequest, user: CurrentUser, request: Request):
                     runs.fail_run(run_id, "agent_execution_failed")
                     yield f"data: {json.dumps({'type': 'error', 'message': event['message']}, ensure_ascii=False)}\n\n"
                     return
+
+            # ---- Post-chat: consume confirmed actions for executed write tools ----
+            _post_chat_audit(final_tool_calls, user_id, session_id, role)
 
             # Persist tool calls
             for tc in final_tool_calls:
@@ -390,6 +559,80 @@ async def get_tool_calls(run_id: str, user: CurrentUser):
     """查询 Run 的工具调用记录 — MVP 开发验证接口。"""
     data = runs.list_tool_calls_by_run(run_id)
     return [ToolCallResponse(**tc) for tc in data]
+
+
+# ---------------------------------------------------------------------------
+# Confirmation endpoints — write-operation approval flow
+# ---------------------------------------------------------------------------
+
+
+@app.get("/actions/pending", response_model=list[PendingActionResponse])
+async def list_pending_actions(user: CurrentUser, request: Request):
+    """列出当前用户+会话的待确认操作，最新优先。
+
+    前端轮询此端点以展示确认卡片。
+    需要 ``X-Ziki-Session-Id`` header 指定会话。
+    """
+    user_id: str = user["user_id"]
+    session_id: str = request.headers.get("X-Ziki-Session-Id", "")
+    if not session_id:
+        raise HTTPException(status_code=400, detail="缺少 X-Ziki-Session-Id 头")
+    items = confirmation.list_pending_actions(user_id, session_id)
+    return [PendingActionResponse(**item) for item in items]
+
+
+@app.post("/actions/{action_id}/confirm", response_model=ConfirmResponse)
+async def confirm_action_endpoint(
+    action_id: str, user: CurrentUser, request: Request,
+):
+    """确认一个待处理操作。
+
+    需要 ``X-Ziki-Session-Id`` header。
+    校验用户归属、会话归属、过期时间。
+    """
+    user_id: str = user["user_id"]
+    session_id: str = request.headers.get("X-Ziki-Session-Id", "")
+    if not session_id:
+        raise HTTPException(status_code=400, detail="缺少 X-Ziki-Session-Id 头")
+
+    try:
+        action = confirmation.confirm_action(action_id, user_id, session_id)
+        return ConfirmResponse(
+            ok=True,
+            action_id=action_id,
+            status=action["status"],
+            tool_name=action["tool_name"],
+            message=f"操作 {action['tool_name']} 已确认，正在执行",
+        )
+    except confirmation.ConfirmationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
+@app.post("/actions/{action_id}/cancel", response_model=ConfirmResponse)
+async def cancel_action_endpoint(
+    action_id: str, user: CurrentUser, request: Request,
+):
+    """取消一个待处理操作。
+
+    需要 ``X-Ziki-Session-Id`` header。
+    校验用户归属、会话归属、过期时间。
+    """
+    user_id: str = user["user_id"]
+    session_id: str = request.headers.get("X-Ziki-Session-Id", "")
+    if not session_id:
+        raise HTTPException(status_code=400, detail="缺少 X-Ziki-Session-Id 头")
+
+    try:
+        action = confirmation.cancel_action(action_id, user_id, session_id)
+        return ConfirmResponse(
+            ok=True,
+            action_id=action_id,
+            status=action["status"],
+            tool_name=action["tool_name"],
+            message=f"操作 {action['tool_name']} 已取消",
+        )
+    except confirmation.ConfirmationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
 
 @app.get("/health")
