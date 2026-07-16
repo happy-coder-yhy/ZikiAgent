@@ -25,13 +25,15 @@ Endpoints:
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import uuid
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, AsyncGenerator
 
 from fastapi import FastAPI, HTTPException, Request, Depends
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 # Ensure project root on sys.path
@@ -264,6 +266,82 @@ async def chat(req: ChatRequest, user: CurrentUser, request: Request):
         session_id=session_id,
         status="completed",
         answer=result.response,
+    )
+
+
+@app.post("/chat/stream")
+async def chat_stream(req: ChatRequest, user: CurrentUser, request: Request):
+    """Streaming chat endpoint — SSE (Server-Sent Events).
+
+    Returns ``text/event-stream`` with these event types:
+
+    - ``data: {"type":"token","text":"..."}`` — a text delta from the LLM
+    - ``data: {"type":"done","answer":"...","tool_calls":[...]}`` — final result
+    - ``data: {"type":"error","message":"..."}`` — execution error
+    """
+    user_id: str = user["user_id"]
+    session_id = req.session_id or str(uuid.uuid4())[:8]
+
+    role = await get_current_role(request, user)
+
+    try:
+        agent = _get_agent_for_role(role)
+    except Exception:
+        raise HTTPException(status_code=503, detail="Agent 未初始化")
+
+    run_id = runs.create_run(
+        session_id=session_id,
+        user_message=req.message,
+        user_id=user_id,
+        role=role,
+    )
+
+    async def _event_generator():
+        final_answer = ""
+        final_tool_calls: list = []
+
+        try:
+            async for event in agent.run_stream(
+                session_id, req.message, user_id=user_id,
+            ):
+                if event["type"] == "token":
+                    yield f"data: {json.dumps({'type': 'token', 'text': event['text']}, ensure_ascii=False)}\n\n"
+                elif event["type"] == "done":
+                    final_answer = event.get("answer", "")
+                    final_tool_calls = event.get("tool_calls", [])
+                elif event["type"] == "error":
+                    runs.fail_run(run_id, "agent_execution_failed")
+                    yield f"data: {json.dumps({'type': 'error', 'message': event['message']}, ensure_ascii=False)}\n\n"
+                    return
+
+            # Persist tool calls
+            for tc in final_tool_calls:
+                call_id = runs.start_tool_call(run_id, tc["tool_name"])
+                if tc["status"] == "success":
+                    runs.complete_tool_call(call_id)
+                else:
+                    runs.fail_tool_call(
+                        call_id, tc.get("error_code", "tool_execution_failed"),
+                    )
+
+            runs.complete_run(run_id, final_answer)
+
+            yield f"data: {json.dumps({'type': 'done', 'run_id': run_id, 'session_id': session_id, 'answer': final_answer}, ensure_ascii=False)}\n\n"
+
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            runs.fail_run(run_id, "stream_failed")
+            yield f"data: {json.dumps({'type': 'error', 'message': '执行失败，请稍后重试'}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # disable nginx buffering
+        },
     )
 
 

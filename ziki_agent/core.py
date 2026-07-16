@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import asyncio
 import logging
+import queue
 import threading
 import time
 from dataclasses import dataclass, field
@@ -341,6 +342,121 @@ class Agent:
             messages=all_messages,
             tool_calls=tool_calls,
         )
+
+    async def run_stream(
+        self, session_id: str, user_message: str, user_id: str = "",
+    ):
+        """Execute one conversational turn with streaming token output.
+
+        Yields dicts:
+            {"type": "token", "text": "..."}   — a text delta
+            {"type": "done", "run_id": "...", "session_id": "...", "answer": "...", "tool_calls": [...]}
+            {"type": "error", "message": "..."}
+
+        The caller MUST iterate the generator to completion so that
+        messages are persisted and long-term memory is updated.
+        """
+        from . import memory
+
+        # ---- Pre-flight: same as run() ----
+        history = memory.get_history(session_id, user_id=user_id)
+
+        long_term = memory.get_long_term_memory(user_id, session_id)
+        if long_term:
+            history.insert(0, {
+                "role": "system",
+                "content": f"[用户长期记忆]\n{long_term}",
+            })
+
+        # ---- Thread-safe token bridge ----
+        token_queue: queue.Queue = queue.Queue()
+        result_holder: dict = {}
+
+        def _stream_cb(delta_text: str) -> None:
+            if delta_text:
+                token_queue.put(("token", delta_text))
+
+        def _run_blocking() -> None:
+            try:
+                result = self._agent.run_conversation(
+                    user_message=user_message,
+                    conversation_history=history if history else None,
+                    stream_callback=_stream_cb,
+                )
+                result_holder["result"] = result
+            except Exception as exc:
+                logger.error("run_conversation (stream) failed: %s", exc)
+                result_holder["error"] = str(exc)
+            finally:
+                token_queue.put(("done", None))
+
+        loop = asyncio.get_running_loop()
+        future = loop.run_in_executor(self._executor, _run_blocking)
+
+        # ---- Consume queue — yield tokens as they arrive ----
+        while True:
+            try:
+                kind, payload = await loop.run_in_executor(
+                    None,
+                    lambda: token_queue.get(timeout=0.05),
+                )
+            except queue.Empty:
+                continue
+
+            if kind == "token":
+                yield {"type": "token", "text": payload}
+            elif kind == "done":
+                break
+
+        # Wait for the thread to fully finish
+        await future
+
+        # ---- Error handling ----
+        error_msg = result_holder.get("error")
+        if error_msg:
+            yield {
+                "type": "error",
+                "message": f"AI 服务暂时不可用: {error_msg}",
+            }
+            memory.add_message(
+                session_id, "assistant",
+                f"AI 服务暂时不可用: {error_msg}", user_id=user_id,
+            )
+            return
+
+        raw_result = result_holder.get("result", {})
+        final_response = raw_result.get("final_response", "") or ""
+        all_messages = raw_result.get("messages", []) or []
+
+        # ---- Extract tool calls ----
+        from .runs import extract_tool_calls_from_messages
+        tool_calls = extract_tool_calls_from_messages(all_messages)
+
+        # ---- Persist messages ----
+        memory.add_messages_batch(session_id, all_messages, user_id=user_id)
+
+        # ---- Trigger long-term memory update every x user turns ----
+        user_msg_count = memory.count_user_messages(user_id, session_id)
+        turn = 10
+        if user_msg_count > 0 and user_msg_count % turn == 0:
+            import sys
+            print(
+                f"[long-term-memory] Trigger fired: turn {user_msg_count} "
+                f"for user={user_id} session={session_id}",
+                file=sys.stderr, flush=True,
+            )
+            threading.Thread(
+                target=lambda: asyncio.run(
+                    self._memory_manager.update(user_id, session_id)
+                ),
+                daemon=True,
+            ).start()
+
+        yield {
+            "type": "done",
+            "answer": final_response,
+            "tool_calls": tool_calls,
+        }
 
     def shutdown(self) -> None:
         self._executor.shutdown(wait=True)
