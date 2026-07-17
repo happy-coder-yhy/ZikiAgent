@@ -125,7 +125,7 @@ def find_run_by_idempotency_key(
         " started_at, finished_at, duration_ms, created_at"
         " FROM agent_runs"
         " WHERE user_id = ? AND session_id = ? AND idempotency_key = ?"
-        "   AND status IN ('completed', 'failed')"
+        "   AND status IN ('completed', 'failed', 'cancelled')"
         " ORDER BY created_at DESC LIMIT 1",
         (user_id, session_id, idempotency_key),
     ).fetchone()
@@ -189,6 +189,36 @@ def fail_run(run_id: str, error_code: str) -> None:
         "UPDATE agent_runs SET status='failed', error_code=?, finished_at=?,"
         " duration_ms=? WHERE run_id=?",
         (error_code, now, duration_ms, run_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def cancel_run(run_id: str, reason: str = "user_cancelled") -> None:
+    """Mark a run as cancelled by the user — distinct from failure.
+
+    Uses status ``'cancelled'`` so the frontend can display "已停止"
+    rather than treating it as an error.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    conn = _connect()
+    _ensure_run_tables(conn)
+    started = conn.execute(
+        "SELECT started_at FROM agent_runs WHERE run_id = ?", (run_id,)
+    ).fetchone()
+    duration_ms = None
+    if started:
+        try:
+            start_dt = datetime.fromisoformat(started[0])
+            duration_ms = int(
+                (datetime.now(timezone.utc) - start_dt).total_seconds() * 1000
+            )
+        except (ValueError, TypeError):
+            pass
+    conn.execute(
+        "UPDATE agent_runs SET status='cancelled', error_code=?, finished_at=?,"
+        " duration_ms=? WHERE run_id=?",
+        (reason, now, duration_ms, run_id),
     )
     conn.commit()
     conn.close()

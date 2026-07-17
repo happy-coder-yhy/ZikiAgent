@@ -378,14 +378,24 @@ class Agent:
         )
 
     async def run_stream(
-        self, session_id: str, user_message: str, user_id: str = "",
+        self,
+        session_id: str,
+        user_message: str,
+        user_id: str = "",
+        cancel_event: asyncio.Event | None = None,
     ):
         """Execute one conversational turn with streaming token output.
 
         Yields dicts:
             {"type": "token", "text": "..."}   — a text delta
+            {"type": "cancelled"}              — user cancelled mid-stream
             {"type": "done", "run_id": "...", "session_id": "...", "answer": "...", "tool_calls": [...]}
             {"type": "error", "message": "..."}
+
+        If *cancel_event* is set, the generator stops consuming tokens
+        and yields ``{"type": "cancelled"}`` as early as possible.
+        The underlying LLM thread is NOT forcefully killed — it runs
+        to completion but its late tokens are discarded.
 
         The caller MUST iterate the generator to completion so that
         messages are persisted and long-term memory is updated.
@@ -436,7 +446,13 @@ class Agent:
         future = loop.run_in_executor(self._executor, _run_blocking)
 
         # ---- Consume queue — yield tokens as they arrive ----
+        cancelled = False
         while True:
+            # Check cancel event before blocking on queue
+            if cancel_event and cancel_event.is_set():
+                cancelled = True
+                break
+
             try:
                 kind, payload = await loop.run_in_executor(
                     None,
@@ -449,6 +465,11 @@ class Agent:
                 yield {"type": "token", "text": payload}
             elif kind == "done":
                 break
+
+        if cancelled:
+            yield {"type": "cancelled"}
+            # Don't persist partial messages / tool calls
+            return
 
         # Wait for the thread to fully finish
         await future

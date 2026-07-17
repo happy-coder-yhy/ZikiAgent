@@ -16,7 +16,9 @@ Role:
 
 Endpoints:
     POST /chat                  — send a message
+    POST /chat/stream           — send a message (SSE streaming)
     GET  /runs/{run_id}         — get run status
+    POST /runs/{run_id}/cancel  — cancel a running run
     GET  /runs/{run_id}/tool-calls — get tool calls for a run
     GET  /sessions              — list sessions (current user only)
     GET  /sessions/:id          — get session history
@@ -26,6 +28,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
@@ -383,6 +386,13 @@ def _post_chat_audit(
 
 
 # ---------------------------------------------------------------------------
+# Cancel-event registry — per-run asyncio.Event for cooperative cancellation
+# ---------------------------------------------------------------------------
+
+_run_cancel_events: dict[str, "asyncio.Event"] = {}
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
@@ -537,6 +547,10 @@ async def chat_stream(req: ChatRequest, user: CurrentUser, request: Request):
         idempotency_key=req.idempotency_key,
     )
 
+    # Create cooperative cancel event and register it
+    cancel_event = asyncio.Event()
+    _run_cancel_events[run_id] = cancel_event
+
     async def _event_generator():
         final_answer = ""
         final_tool_calls: list = []
@@ -547,9 +561,17 @@ async def chat_stream(req: ChatRequest, user: CurrentUser, request: Request):
         try:
             async for event in agent.run_stream(
                 session_id, req.message, user_id=user_id,
+                cancel_event=cancel_event,
             ):
                 if event["type"] == "token":
                     yield f"data: {json.dumps({'type': 'token', 'text': event['text']}, ensure_ascii=False)}\n\n"
+                elif event["type"] == "cancelled":
+                    # Agent detected cancel event, stopped early
+                    if not cancel_event.is_set():
+                        cancel_event.set()
+                    runs.cancel_run(run_id, "user_cancelled")
+                    yield f"data: {json.dumps({'type': 'cancelled', 'run_id': run_id, 'message': '已停止'}, ensure_ascii=False)}\n\n"
+                    return
                 elif event["type"] == "done":
                     final_answer = event.get("answer", "")
                     final_tool_calls = event.get("tool_calls", [])
@@ -585,11 +607,17 @@ async def chat_stream(req: ChatRequest, user: CurrentUser, request: Request):
             yield f"data: {json.dumps({'type': 'error', 'message': '执行失败，请稍后重试'}, ensure_ascii=False)}\n\n"
 
         finally:
-            # Ensure run is never left permanently in "running" —
-            # covers client disconnect, coroutine cancellation, etc.
+            # Clean up cancel event registry
+            _run_cancel_events.pop(run_id, None)
+
+            # Ensure run is never left permanently in "running".
+            # Distinguish: explicit cancel vs client disconnect vs other.
             run_data = runs.get_run(run_id)
             if run_data and run_data["status"] == "running":
-                runs.fail_run(run_id, "client_disconnected")
+                if cancel_event.is_set():
+                    runs.cancel_run(run_id, "user_cancelled")
+                else:
+                    runs.fail_run(run_id, "client_disconnected")
 
     return StreamingResponse(
         _event_generator(),
@@ -700,6 +728,46 @@ async def get_tool_calls(run_id: str, user: CurrentUser):
         raise HTTPException(status_code=404, detail="Run 不存在")
     data = runs.list_tool_calls_by_run(run_id)
     return [ToolCallResponse(**tc) for tc in data]
+
+
+@app.post("/runs/{run_id}/cancel")
+async def cancel_run(run_id: str, user: CurrentUser):
+    """取消正在执行的 Run。
+
+    校验 Run 属于当前 JWT 用户，将状态置为 ``cancelled``，
+    并通过 cooperative cancel event 通知正在执行的 agent 尽早中断。
+
+    - 如果 Run 已完成/已取消：返回 200（幂等）
+    - 如果 Run 不存在/不属于当前用户：返回 404
+    """
+    user_id: str = user["user_id"]
+    if not runs.run_belongs_to(run_id, user_id):
+        raise HTTPException(status_code=404, detail="Run 不存在")
+
+    run_data = runs.get_run(run_id)
+    if run_data is None:
+        raise HTTPException(status_code=404, detail="Run 不存在")
+
+    # Idempotent: already finished or cancelled
+    if run_data["status"] != "running":
+        return {
+            "ok": True,
+            "run_id": run_id,
+            "status": run_data["status"],
+        }
+
+    # Signal the cooperative cancel event
+    event = _run_cancel_events.get(run_id)
+    if event is not None:
+        event.set()
+
+    runs.cancel_run(run_id, "user_cancelled")
+
+    return {
+        "ok": True,
+        "run_id": run_id,
+        "status": "cancelled",
+    }
 
 
 # ---------------------------------------------------------------------------
