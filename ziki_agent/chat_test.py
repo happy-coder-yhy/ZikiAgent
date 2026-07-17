@@ -8,12 +8,14 @@ COLLECTOR_USER_ID = "27b5f00f-cc82-4eaa-889b-d34ad839098a"
 
 
 async def main():
-    agent = Agent()
-    # session_id = str(uuid.uuid4())[:8]
-    session_id = '8f58d9fc'
-
     # Switch between ADMIN_USER_ID / COLLECTOR_USER_ID to test different roles
-    test_user_id = ADMIN_USER_ID
+    test_user_id = COLLECTOR_USER_ID
+    test_role = "collector"  # must match the user's actual role
+
+    agent = Agent(role=test_role)
+    # session_id = str(uuid.uuid4())[:8]
+    # session_id = '8f58d9fc'
+    session_id = '6f40d1e8'
 
     # Turn 1
     # result = await agent.run(session_id, "你好，我是小明", user_id=test_user_id)
@@ -40,7 +42,20 @@ async def main():
     # memory.clear_session(session_id, user_id=test_user_id)
     # agent.shutdown()
 
-    text = "你好，请自我介绍"
+    text = "我是北京大学毕业的"
+    full_response = ""
+    async for chunk in agent.run_stream(session_id, text, user_id=test_user_id):
+        if chunk.get("type") == "token":
+            content = chunk.get("text", "")
+            print(content, end="", flush=True)
+            full_response += content
+        elif chunk.get("type") == "done":
+            # 也可以直接用最终的 answer，与累积的一致
+            final_answer = chunk.get("answer", "")
+            # 可选：覆盖 full_response = final_answer
+    print()  # 换行
+
+    text = "我喜欢周杰伦"
     full_response = ""
     async for chunk in agent.run_stream(session_id, text, user_id=test_user_id):
         if chunk.get("type") == "token":
