@@ -8,6 +8,8 @@ from .memory_management import (
     clear_session,
     list_sessions,
     session_belongs_to,
+    get_session_owner,
+    validate_session_owner,
 )
 
 from .long_term_memory import (
@@ -27,6 +29,8 @@ __all__ = [
     "clear_session",
     "list_sessions",
     "session_belongs_to",
+    "get_session_owner",
+    "validate_session_owner",
     # long-term
     "LongTermMemoryManager",
     "get_long_term_memory",

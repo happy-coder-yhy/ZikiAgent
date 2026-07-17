@@ -399,6 +399,13 @@ async def chat(req: ChatRequest, user: CurrentUser, request: Request):
     user_id: str = user["user_id"]
     session_id = req.session_id or str(uuid.uuid4())[:8]
 
+    # ---- Session isolation: block cross-user access ----
+    if req.session_id and not memory.validate_session_owner(session_id, user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="会话不属于当前用户，无法访问",
+        )
+
     # Resolve role from JWT or header
     role = await get_current_role(request, user)
 
@@ -481,6 +488,13 @@ async def chat_stream(req: ChatRequest, user: CurrentUser, request: Request):
     """
     user_id: str = user["user_id"]
     session_id = req.session_id or str(uuid.uuid4())[:8]
+
+    # ---- Session isolation: block cross-user access ----
+    if req.session_id and not memory.validate_session_owner(session_id, user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="会话不属于当前用户，无法访问",
+        )
 
     role = await get_current_role(request, user)
 

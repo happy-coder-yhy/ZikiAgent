@@ -282,6 +282,17 @@ class Agent:
         """
 
         from . import memory
+
+        # ---- Session isolation check ----
+        if not memory.validate_session_owner(session_id, user_id):
+            owner = memory.get_session_owner(session_id)
+            return AgentResult(
+                response=(
+                    f"会话 {session_id} 不属于当前用户，无法访问。"
+                    if owner else "会话访问验证失败。"
+                ),
+            )
+
         history = memory.get_history(session_id, user_id=user_id)
 
         # ---- Inject long-term memory into conversation context ----
@@ -357,6 +368,14 @@ class Agent:
         messages are persisted and long-term memory is updated.
         """
         from . import memory
+
+        # ---- Session isolation check ----
+        if not memory.validate_session_owner(session_id, user_id):
+            yield {
+                "type": "error",
+                "message": f"会话 {session_id} 不属于当前用户，无法访问。",
+            }
+            return
 
         # ---- Pre-flight: same as run() ----
         history = memory.get_history(session_id, user_id=user_id)

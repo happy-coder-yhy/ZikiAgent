@@ -198,3 +198,37 @@ def session_belongs_to(session_id: str, user_id: str) -> bool:
     ).fetchone()
     conn.close()
     return (row[0] if row else 0) > 0
+
+
+def get_session_owner(session_id: str) -> str | None:
+    """Return the user_id that owns *session_id*, or None if the session is empty.
+
+    If multiple user_ids exist for the same session (shouldn't happen under
+    normal operation, but possible before session isolation was enforced),
+    returns the one with the most messages.
+    """
+    conn = _connect()
+    _ensure_table(conn)
+    row = conn.execute(
+        "SELECT user_id FROM messages WHERE session_id = ? AND user_id != '' "
+        "GROUP BY user_id ORDER BY COUNT(*) DESC LIMIT 1",
+        (session_id,),
+    ).fetchone()
+    conn.close()
+    return row[0] if row else None
+
+
+def validate_session_owner(session_id: str, user_id: str) -> bool:
+    """Check whether *user_id* is authorised to use *session_id*.
+
+    Returns True when:
+      - The session has no messages yet (brand-new session), OR
+      - The session's existing owner matches *user_id*
+
+    Returns False when:
+      - The session has messages from a different user_id
+    """
+    owner = get_session_owner(session_id)
+    if owner is None:
+        return True  # new session
+    return owner == user_id
