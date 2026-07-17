@@ -218,6 +218,86 @@ def get_session_owner(session_id: str) -> str | None:
     return row[0] if row else None
 
 
+def get_complete_history(
+    session_id: str,
+    user_id: str = "",
+    page: int = 1,
+    page_size: int = 20,
+) -> dict[str, Any]:
+    """Return paginated complete history for a session.
+
+    Unlike ``get_history()`` which only returns the last N messages for the
+    LLM context window, this returns ALL messages with pagination support
+    for frontend display.
+
+    Args:
+        session_id: conversation identifier.
+        user_id: the authenticated user who owns this session.
+        page: 1-based page number (clamped to >= 1).
+        page_size: number of messages per page (clamped to 1..100).
+
+    Returns:
+        {
+            "session_id": str,
+            "messages": [{"id": int, "role": str, "content": str, "created_at": str, ...}, ...],
+            "page": int,
+            "page_size": int,
+            "total": int,
+            "total_pages": int,
+            "has_more": bool,
+        }
+    """
+    page = max(page, 1)
+    page_size = max(1, min(page_size, 100))
+
+    conn = _connect()
+    _ensure_table(conn)
+
+    # Count total
+    row = conn.execute(
+        "SELECT COUNT(*) FROM messages WHERE session_id = ? AND user_id = ?",
+        (session_id, user_id),
+    ).fetchone()
+    total = row[0] if row else 0
+
+    total_pages = max(1, (total + page_size - 1) // page_size) if total > 0 else 1
+    page = min(page, total_pages)
+    offset = (page - 1) * page_size
+
+    # Fetch messages in chronological order
+    rows = conn.execute(
+        "SELECT id, role, content, msg_json, created_at FROM messages "
+        "WHERE session_id = ? AND user_id = ? "
+        "ORDER BY id ASC LIMIT ? OFFSET ?",
+        (session_id, user_id, page_size, offset),
+    ).fetchall()
+    conn.close()
+
+    messages: list[dict[str, Any]] = []
+    for msg_id, role, content, msg_json_str, created_at in rows:
+        try:
+            full = json.loads(msg_json_str) if msg_json_str else {}
+        except json.JSONDecodeError:
+            full = {}
+        if full and full.get("role"):
+            entry = {**full, "id": msg_id, "created_at": created_at}
+        elif content:
+            entry = {"id": msg_id, "role": role, "content": content, "created_at": created_at}
+        else:
+            entry = {"id": msg_id, "role": role, "content": "", "created_at": created_at}
+        messages.append(entry)
+
+    return {
+        "session_id": session_id,
+        "messages": messages,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": total_pages,
+        "has_more": page < total_pages,
+    }
+
+
 def validate_session_owner(session_id: str, user_id: str) -> bool:
     """Check whether *user_id* is authorised to use *session_id*.
 

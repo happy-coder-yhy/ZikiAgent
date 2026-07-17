@@ -616,14 +616,24 @@ async def list_sessions(user: CurrentUser):
 
 
 @app.get("/sessions/{session_id}/history")
-async def get_history(session_id: str, user: CurrentUser):
+async def get_history(
+    session_id: str,
+    user: CurrentUser,
+    page: int = 1,
+    page_size: int = 20,
+):
+    """返回会话的完整历史记录，支持分页。
+
+    Query params:
+        page:      页码，从 1 开始（默认 1）
+        page_size: 每页消息数（默认 20，上限 100）
+    """
     user_id: str = user["user_id"]
     if not memory.session_belongs_to(session_id, user_id):
         raise HTTPException(status_code=404, detail="会话不存在")
-    return {
-        "session_id": session_id,
-        "messages": memory.get_history(session_id, user_id=user_id),
-    }
+    return memory.get_complete_history(
+        session_id, user_id=user_id, page=page, page_size=page_size,
+    )
 
 
 @app.delete("/sessions/{session_id}")
