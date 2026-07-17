@@ -269,6 +269,11 @@ class Agent:
         from .memory.long_term_memory import LongTermMemoryManager
         self._memory_manager = LongTermMemoryManager()
 
+        # ---- 6. Session title manager (fire-and-forget on first turn) ----
+        from .memory.session_title import SessionTitleManager
+        self._title_manager = SessionTitleManager()
+        self._title_threads: list[threading.Thread] = []
+
     async def run(
         self, session_id: str, user_message: str, user_id: str = "",
     ) -> AgentResult:
@@ -340,13 +345,31 @@ class Agent:
             # Run in a separate daemon thread so it's truly fire-and-forget —
             # asyncio.create_task() can be unreliable in FastAPI when the
             # route handler returns immediately.
-            import threading
             threading.Thread(
                 target=lambda: asyncio.run(
                     self._memory_manager.update(user_id, session_id)
                 ),
                 daemon=True,
             ).start()
+
+        # ---- Trigger session title generation on first turn ----
+        if not memory.get_session_title(session_id, user_id=user_id):
+            def _gen_and_save_title():
+                try:
+                    title = asyncio.run(
+                        self._title_manager.generate_title(
+                            user_message, final_response,
+                        )
+                    )
+                    from . import memory as _mem
+                    _mem.upsert_session_title(session_id, user_id, title)
+                except Exception:
+                    pass
+            t = threading.Thread(target=_gen_and_save_title, daemon=True)
+            t.start()
+            self._title_threads.append(t)
+            # Clean up completed threads
+            self._title_threads = [t for t in self._title_threads if t.is_alive()]
 
         return AgentResult(
             response=final_response,
@@ -472,6 +495,23 @@ class Agent:
                 daemon=True,
             ).start()
 
+        # ---- Trigger session title generation on first turn ----
+        if not memory.get_session_title(session_id, user_id=user_id):
+            def _gen_and_save_title():
+                try:
+                    title = asyncio.run(
+                        self._title_manager.generate_title(
+                            user_message, final_response,
+                        )
+                    )
+                    memory.upsert_session_title(session_id, user_id, title)
+                except Exception:
+                    pass
+            t = threading.Thread(target=_gen_and_save_title, daemon=True)
+            t.start()
+            self._title_threads.append(t)
+            self._title_threads = [t for t in self._title_threads if t.is_alive()]
+
         yield {
             "type": "done",
             "answer": final_response,
@@ -479,7 +519,12 @@ class Agent:
         }
 
     def shutdown(self) -> None:
+        # Wait for in-flight title generation threads (max 5s each)
+        for t in self._title_threads:
+            if t.is_alive():
+                t.join(timeout=5)
         self._executor.shutdown(wait=True)
         self._memory_manager.shutdown()
+        self._title_manager.shutdown()
         if hasattr(self._agent, "close"):
             self._agent.close()

@@ -11,6 +11,9 @@ from .memory_management import (
     session_belongs_to,
     get_session_owner,
     validate_session_owner,
+    get_session_title,
+    upsert_session_title,
+    delete_session_title,
 )
 
 from .long_term_memory import (
@@ -19,6 +22,10 @@ from .long_term_memory import (
     upsert_long_term_memory,
     count_user_messages,
     delete_long_term_memory,
+)
+
+from .session_title import (
+    SessionTitleManager,
 )
 
 __all__ = [
@@ -33,10 +40,15 @@ __all__ = [
     "session_belongs_to",
     "get_session_owner",
     "validate_session_owner",
+    "get_session_title",
+    "upsert_session_title",
+    "delete_session_title",
     # long-term
     "LongTermMemoryManager",
     "get_long_term_memory",
     "upsert_long_term_memory",
     "count_user_messages",
     "delete_long_term_memory",
+    # session title
+    "SessionTitleManager",
 ]

@@ -253,6 +253,7 @@ class SessionInfo(BaseModel):
     session_id: str
     message_count: int
     last_message: str
+    title: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -612,7 +613,13 @@ async def chat_stream(req: ChatRequest, user: CurrentUser, request: Request):
 @app.get("/sessions", response_model=list[SessionInfo])
 async def list_sessions(user: CurrentUser):
     user_id: str = user["user_id"]
-    return [SessionInfo(**s) for s in memory.list_sessions(user_id=user_id)]
+    sessions = memory.list_sessions(user_id=user_id)
+    result = []
+    for s in sessions:
+        sid = s["session_id"]
+        title = memory.get_session_title(sid, user_id=user_id) or ""
+        result.append(SessionInfo(**s, title=title))
+    return result
 
 
 @app.get("/sessions/{session_id}/history")
@@ -631,9 +638,11 @@ async def get_history(
     user_id: str = user["user_id"]
     if not memory.session_belongs_to(session_id, user_id):
         raise HTTPException(status_code=404, detail="会话不存在")
-    return memory.get_complete_history(
+    result = memory.get_complete_history(
         session_id, user_id=user_id, page=page, page_size=page_size,
     )
+    result["title"] = memory.get_session_title(session_id, user_id=user_id) or ""
+    return result
 
 
 @app.delete("/sessions/{session_id}")
@@ -660,7 +669,10 @@ async def delete_session(session_id: str, user: CurrentUser):
     # 3. Delete long-term memory for this session
     memory.delete_long_term_memory(user_id, session_id)
 
-    # 4. Delete conversation messages
+    # 4. Delete session title
+    memory.delete_session_title(session_id, user_id=user_id)
+
+    # 5. Delete conversation messages
     memory.clear_session(session_id, user_id=user_id)
 
     return {

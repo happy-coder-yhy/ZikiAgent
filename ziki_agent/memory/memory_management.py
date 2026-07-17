@@ -312,3 +312,68 @@ def validate_session_owner(session_id: str, user_id: str) -> bool:
     if owner is None:
         return True  # new session
     return owner == user_id
+
+
+# ---------------------------------------------------------------------------
+# Session title table
+# ---------------------------------------------------------------------------
+
+
+def _ensure_title_table(conn: sqlite3.Connection) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS session_title (
+            session_id TEXT NOT NULL,
+            user_id    TEXT NOT NULL,
+            title      TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (session_id, user_id)
+        )
+    """)
+    conn.commit()
+
+
+def get_session_title(session_id: str, user_id: str = "") -> str | None:
+    """Return the stored title for a session, or None."""
+    conn = _connect()
+    _ensure_title_table(conn)
+    row = conn.execute(
+        "SELECT title FROM session_title WHERE session_id = ? AND user_id = ?",
+        (session_id, user_id),
+    ).fetchone()
+    conn.close()
+    return row[0] if row else None
+
+
+def upsert_session_title(session_id: str, user_id: str, title: str) -> None:
+    """Insert or update the title for a session."""
+    conn = _connect()
+    _ensure_title_table(conn)
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        "INSERT INTO session_title (session_id, user_id, title, updated_at) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(session_id, user_id) DO UPDATE SET "
+        "  title = excluded.title, updated_at = excluded.updated_at",
+        (session_id, user_id, title, now),
+    )
+    conn.commit()
+    conn.close()
+
+
+def delete_session_title(session_id: str, user_id: str = "") -> bool:
+    """Delete the title for a session. Returns True if a row was deleted."""
+    conn = _connect()
+    _ensure_title_table(conn)
+    if user_id:
+        cursor = conn.execute(
+            "DELETE FROM session_title WHERE session_id = ? AND user_id = ?",
+            (session_id, user_id),
+        )
+    else:
+        cursor = conn.execute(
+            "DELETE FROM session_title WHERE session_id = ?", (session_id,),
+        )
+    conn.commit()
+    deleted = cursor.rowcount > 0
+    conn.close()
+    return deleted
