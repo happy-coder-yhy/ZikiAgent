@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import dataclass, field, fields, is_dataclass
 from typing import Any, Dict, Mapping, MutableMapping, Optional, Sequence
 from urllib import error, parse, request
+
+# ---------------------------------------------------------------------------
+# 绕过系统 SOCKS5 代理（内部网络 IP 无法走代理）
+# ---------------------------------------------------------------------------
+os.environ.setdefault("NO_PROXY", "10.9.103.101,localhost,127.0.0.1")
+_no_proxy_handler = request.ProxyHandler({})
+_no_proxy_opener = request.build_opener(_no_proxy_handler)
+request.install_opener(_no_proxy_opener)
 
 
 class APIRequestError(Exception):
@@ -459,6 +468,26 @@ class ZataAPICaller(APICaller):
             APIResponse: 当前用户信息接口响应结果。
         """
         return self._request_rbac(method="GET", path="/userinfo")
+
+    def get_user_roles(
+        self,
+        page_num: int = 1,
+        page_size: int = 100,
+    ) -> APIResponse:
+        """查询 Casdoor 用户角色列表。
+
+        参数:
+            page_num (int): 页码，默认 1。
+            page_size (int): 每页条数，默认 100。
+
+        返回:
+            APIResponse: 用户角色列表响应。
+                result.data.metadata.results 为角色数据数组，
+                每个角色含 name（角色名，如 "System-Administrator"）、
+                displayName、users（关联用户列表）等字段。
+        """
+        params = {"pageNum": page_num, "pageSize": page_size}
+        return self._request_rbac(method="GET", path="/user/roles", params=params)
 
     def login(self, username: str, password: str, organization: str) -> APIResponse:
         """调用 zata-rbac 登录接口并保存返回的 token。
