@@ -149,42 +149,34 @@ async def get_current_role(request: Request, user: dict) -> str:
     """Extract the user's role for tool allowlist enforcement.
 
     Priority:
-      1. Casdoor ``GET /user/roles`` API lookup（按 user_id 查平台角色）
-      2. ``X-Ziki-Role`` header (MVP testing — only when
-         ``ZIKI_ALLOW_ROLE_HEADER=1`` is set)
+      1. ``GET /api/zata-rbac/userinfo`` — pass the end-user's own token,
+         get ``roles`` array directly (fast, no iteration).
+      2. ``GET /user/roles`` fallback — iterate all roles via server admin
+         token, match user by id/name.
+      3. ``X-Ziki-Role`` header (MVP testing — only when
+         ``ZIKI_ALLOW_ROLE_HEADER=1`` is set).
 
     Raises 403 if the role is missing or invalid.
-
-    TODO: 等 Casdoor JWT 加上 role claim 后，恢复 JWT 优先判断，删掉 API 调用。
     """
     from ApiCaller.modules.role_resolver import resolve_role_from_platform
 
-    # ---- 未来启用：JWT role claim 直接拿 ----
-    # raw_claims = user.get("raw", {})
-    # role = raw_claims.get("role")
-    # if role:
-    #     _PLATFORM_ROLE_MAP = {
-    #         "System-Administrator": "admin",
-    #         "Data-Collector": "collector",
-    #     }
-    #     role = _PLATFORM_ROLE_MAP.get(role, role)
-    #     try:
-    #         return validate_role(role)
-    #     except ValueError:
-    #         raise HTTPException(
-    #             status_code=403,
-    #             detail=f"不支持的角色: {role}，允许 admin / collector",
-    #         )
+    # Extract the raw user token from Authorization header
+    user_token = ""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        user_token = auth_header[7:]
 
-    # 1. Query Casdoor API by user_id + user_name
     user_id: str = user.get("user_id", "")
     user_name: str = user.get("name", "")
-    if user_id:
-        resolved = resolve_role_from_platform(user_id, user_name)
-        if resolved:
-            return resolved
 
-    # 2. MVP fallback: X-Ziki-Role header (DISABLED by default)
+    # 1. Primary: userinfo with end-user token (fast, direct)
+    resolved = resolve_role_from_platform(
+        user_id=user_id, user_name=user_name, token=user_token,
+    )
+    if resolved:
+        return resolved
+
+    # 2. Fallback: X-Ziki-Role header (DISABLED by default)
     if os.environ.get("ZIKI_ALLOW_ROLE_HEADER") == "1":
         header_role = request.headers.get("X-Ziki-Role")
         if header_role:
