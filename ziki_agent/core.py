@@ -308,6 +308,10 @@ class Agent:
                 "content": f"[用户长期记忆]\n{long_term}",
             })
 
+        # ---- Set MCP user context for write-tool confirmation guard ----
+        from mcp_server.server import set_user_context
+        set_user_context(user_id, session_id)
+
         loop = asyncio.get_running_loop()
         try:
             raw_result = await loop.run_in_executor(
@@ -429,6 +433,10 @@ class Agent:
                 token_queue.put(("token", delta_text))
 
         def _run_blocking() -> None:
+            # Set MCP user context for write-tool confirmation guard
+            from mcp_server.server import set_user_context as _set_ctx
+            _set_ctx(user_id, session_id)
+
             try:
                 result = self._agent.run_conversation(
                     user_message=user_message,
