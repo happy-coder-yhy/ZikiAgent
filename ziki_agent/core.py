@@ -308,6 +308,12 @@ class Agent:
                 "content": f"[用户长期记忆]\n{long_term}",
             })
 
+        # Record how many prior messages we passed to the agent so we can
+        # slice off the old history from the returned messages list.
+        # Hermes returns the *entire* messages list (old history + new turn),
+        # so we must only persist the NEW messages to avoid duplicates.
+        prior_msg_count = len(history)
+
         # ---- Set MCP user context for write-tool confirmation guard ----
         from mcp_server.server import set_user_context
         set_user_context(user_id, session_id)
@@ -330,11 +336,15 @@ class Agent:
         final_response = raw_result.get("final_response", "") or ""
         all_messages = raw_result.get("messages", []) or []
 
+        # Only persist NEW messages — Hermes returns the full list including
+        # the conversation_history we passed in, which is already in the DB.
+        new_messages = all_messages[prior_msg_count:]
+
         # Extract tool calls from Hermes messages (post-hoc)
         from .runs import extract_tool_calls_from_messages
         tool_calls = extract_tool_calls_from_messages(all_messages)
 
-        memory.add_messages_batch(session_id, all_messages, user_id=user_id)
+        memory.add_messages_batch(session_id, new_messages, user_id=user_id)
 
         # ---- Trigger long-term memory update every x user turns ----
         user_msg_count = memory.count_user_messages(user_id, session_id)
@@ -424,6 +434,10 @@ class Agent:
                 "content": f"[用户长期记忆]\n{long_term}",
             })
 
+        # Record how many prior messages we passed to the agent so we can
+        # slice off the old history from the returned messages list.
+        prior_msg_count = len(history)
+
         # ---- Thread-safe token bridge ----
         token_queue: queue.Queue = queue.Queue()
         result_holder: dict = {}
@@ -500,12 +514,16 @@ class Agent:
         final_response = raw_result.get("final_response", "") or ""
         all_messages = raw_result.get("messages", []) or []
 
+        # Only persist NEW messages — Hermes returns the full list including
+        # the conversation_history we passed in, which is already in the DB.
+        new_messages = all_messages[prior_msg_count:]
+
         # ---- Extract tool calls ----
         from .runs import extract_tool_calls_from_messages
         tool_calls = extract_tool_calls_from_messages(all_messages)
 
         # ---- Persist messages ----
-        memory.add_messages_batch(session_id, all_messages, user_id=user_id)
+        memory.add_messages_batch(session_id, new_messages, user_id=user_id)
 
         # ---- Trigger long-term memory update every x user turns ----
         user_msg_count = memory.count_user_messages(user_id, session_id)
