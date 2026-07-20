@@ -402,6 +402,10 @@ async def chat(req: ChatRequest, user: CurrentUser, request: Request):
     user_id: str = user["user_id"]
     session_id = req.session_id or str(uuid.uuid4())[:8]
 
+    # ---- New session: set default title immediately ----
+    if not req.session_id:
+        memory.upsert_session_title(session_id, user_id, "新对话")
+
     # ---- Session isolation: block cross-user access ----
     if req.session_id and not memory.validate_session_owner(session_id, user_id):
         raise HTTPException(
@@ -491,6 +495,10 @@ async def chat_stream(req: ChatRequest, user: CurrentUser, request: Request):
     """
     user_id: str = user["user_id"]
     session_id = req.session_id or str(uuid.uuid4())[:8]
+
+    # ---- New session: set default title immediately ----
+    if not req.session_id:
+        memory.upsert_session_title(session_id, user_id, "新对话")
 
     # ---- Session isolation: block cross-user access ----
     if req.session_id and not memory.validate_session_owner(session_id, user_id):

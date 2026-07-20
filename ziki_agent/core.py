@@ -372,7 +372,7 @@ class Agent:
             self._memory_threads = [t for t in self._memory_threads if t.is_alive()]
 
         # ---- Trigger session title generation on first turn ----
-        if not memory.get_session_title(session_id, user_id=user_id):
+        if not memory.get_session_title(session_id, user_id=user_id) or memory.get_session_title(session_id, user_id=user_id) == "新对话":
             def _gen_and_save_title():
                 try:
                     title = asyncio.run(
@@ -551,7 +551,7 @@ class Agent:
             self._memory_threads = [t for t in self._memory_threads if t.is_alive()]
 
         # ---- Trigger session title generation on first turn ----
-        if not memory.get_session_title(session_id, user_id=user_id):
+        if not memory.get_session_title(session_id, user_id=user_id) or memory.get_session_title(session_id, user_id=user_id) == "新对话":
             def _gen_and_save_title():
                 try:
                     title = asyncio.run(
